@@ -1,25 +1,6 @@
-  mel_basis = filters.mel(sr=sr, n_fft=n_fft, **kwargs)
-Traceback (most recent call last):
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\run_mos_predict_folder.py", line 258, in <module>
-    main()
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\run_mos_predict_folder.py", line 222, in main
-    mos = predictor.predict_one(wav_path)
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\run_mos_predict_folder.py", line 175, in predict_one
-    y_hat, _ = self.NL.predict_mos(
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\nisqa\NISQA_lib.py", line 1434, in predict_mos
-    y_hat_list = [ [model(xb.to(dev), n_wins.to(dev)).cpu().numpy(), yb.cpu().numpy()] for xb, yb, (idx, n_wins) in dl]
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\nisqa\NISQA_lib.py", line 1434, in <listcomp>
-    y_hat_list = [ [model(xb.to(dev), n_wins.to(dev)).cpu().numpy(), yb.cpu().numpy()] for xb, yb, (idx, n_wins) in dl]
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\utils\data\dataloader.py", line 631, in __next__
-    data = self._next_data()
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\utils\data\dataloader.py", line 675, in _next_data
-    data = self._dataset_fetcher.fetch(index)  # may raise StopIteration
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\utils\data\_utils\fetch.py", line 51, in fetch
-    data = [self.dataset[idx] for idx in possibly_batched_index]
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\utils\data\_utils\fetch.py", line 51, in <listcomp>
-    data = [self.dataset[idx] for idx in possibly_batched_index]
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\nisqa\NISQA_lib.py", line 2180, in __getitem__
-    x_spec_seg, n_wins = segment_specs(file_path,
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\nisqa\NISQA_lib.py", line 2277, in segment_specs
-    raise ValueError('n_wins {} > max_length {} --- {}. Increase max window length ms_max_segments!'.format(n_wins, max_length, file_path))
-ValueError: n_wins 1609 > max_length 1300 --- C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\testdata\fresh9s_NB_SLR.qdss.0x158A.pcm.0x1036E101.VPTX_ECNEAR_IN.0x3.tx.16k.Q15.0.wav. Increase max window length ms_max_segments!        
+Preview:
+                                                                     filename  mos_pred  sample_rate_hz  duration_s   rms_dbfs  exec_time_s device            model  max_segments_used  retry                                                                    
+                                                                                                                                                                 error_msg
+fresh9s_NB_SLR.qdss.0x158A.pcm.0x1036E101.VPTX_ECNEAR_IN.0x3.tx.16k.Q15.0.wav  1.625875           16000       64.46 -40.990599     0.465410   cuda NISQAv2_mos_only               1609   True n_wins 1609 > max_length 1300 --- C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\testdata\fresh9s_NB_SLR.qdss.0x158A.pcm.0x1036E101.VPTX_ECNEAR_IN.0x3.tx.16k.Q15.0.wav. Increase max window length ms_max_segments!
+      fresh9s_NB_SLR.qdss.0x158A.pcm.0x1036E141.VPTX_OUT.0x3.tx.16k.Q15.0.wav  4.601748           16000       64.46 -28.185643     0.202695   cuda NISQAv2_mos_only               1609   True       n_wins 1609 > max_length 1300 --- C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\testdata\fresh9s_NB_SLR.qdss.0x158A.pcm.0x1036E141.VPTX_OUT.0x3.tx.16k.Q15.0.wav. Increase max window length ms_max_segments!
+        fresh9s_NB_SLR.qdss.0x158A.pcm.0x1036E441.0xABCD.0x3.tx.16k.Q15.0.wav  4.201903           16000       64.46 -44.019181     0.174560   cuda NISQAv2_mos_only               1609   True         n_wins 1609 > max_length 1300 --- C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\testdata\fresh9s_NB_SLR.qdss.0x158A.pcm.0x1036E441.0xABCD.0x3.tx.16k.Q15.0.wav. Increase max window length ms_max_segments!
