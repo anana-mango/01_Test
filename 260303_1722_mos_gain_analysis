@@ -1,0 +1,282 @@
+# -*- coding: utf-8 -*-
+"""
+Gain sweep experiment for NISQA MOS (offline)
+- Pick N wav files from INPUT_WAV_DIR (top/bottom/first N)
+- Apply gain in dB (e.g., -12, -6, 0, +6) in-memory (no wav files written)
+- For each gain, run NISQA MOS prediction and plot MOS vs gain
+- Also plot RMS(dBFS) vs gain as sanity check
+- Saves CSV results under <project>/results/ with timestamp
+
+Requires:
+- NISQA_master present locally
+- weights/nisqa_mos_only.tar
+- soundfile, numpy, pandas, matplotlib installed
+"""
+
+from __future__ import annotations
+
+import sys
+import time
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import soundfile as sf
+
+
+# =============================================================================
+# [A] 설정(여기만 바꾸면 됨)
+# =============================================================================
+PROJECT_ROOT = Path(__file__).resolve().parent
+NISQA_ROOT = PROJECT_ROOT / "NISQA_master"
+INPUT_WAV_DIR = NISQA_ROOT / "testdata"
+MODEL_PATH = NISQA_ROOT / "weights" / "nisqa_mos_only.tar"
+RESULTS_DIR = PROJECT_ROOT / "results"
+
+# 게인 스윕 값(dB) - 필요하면 바꿔
+GAIN_DB_LIST = [-18, -12, -6, 0, +6, +12]
+
+# 분석할 파일 선택 방식
+# "first": 폴더에서 앞 N개
+# "lowest": 기존 nisqa_mos_results_*.csv에서 MOS 낮은 N개
+# "highest": MOS 높은 N개
+SELECT_MODE = "first"
+N_FILES = 3
+
+# 클리핑 방지: peak가 -1 dBFS를 넘지 않도록 전체를 스케일 다운(선택)
+AVOID_CLIP = True
+CLIP_TARGET_PEAK_DBFS = -1.0  # -1 dBFS
+
+# =============================================================================
+# [B] 유틸
+# =============================================================================
+def ensure_sys_path():
+    p = str(NISQA_ROOT)
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+def to_mono(x: np.ndarray) -> np.ndarray:
+    if x.ndim == 1:
+        return x
+    return np.mean(x, axis=1)
+
+def rms_dbfs(x: np.ndarray, eps=1e-12) -> float:
+    x = x.astype(np.float64)
+    rms = np.sqrt(np.mean(x**2))
+    return 20*np.log10(max(rms, eps))
+
+def peak_dbfs(x: np.ndarray, eps=1e-12) -> float:
+    pk = float(np.max(np.abs(x)))
+    return 20*np.log10(max(pk, eps))
+
+def apply_gain_db(x: np.ndarray, gain_db: float) -> np.ndarray:
+    g = 10 ** (gain_db / 20.0)
+    return (x.astype(np.float64) * g).astype(np.float32)
+
+def limit_peak_to_target(x: np.ndarray, target_peak_dbfs: float = -1.0) -> np.ndarray:
+    """
+    If signal peak is above target, scale down to target.
+    """
+    pk = float(np.max(np.abs(x)))
+    if pk <= 0:
+        return x
+    pk_db = 20*np.log10(pk)
+    if pk_db <= target_peak_dbfs:
+        return x
+    # scale so that new peak = target
+    target_pk = 10 ** (target_peak_dbfs / 20.0)
+    scale = target_pk / pk
+    return (x.astype(np.float64) * scale).astype(np.float32)
+
+def scan_wavs(folder: Path) -> List[Path]:
+    wavs = sorted(folder.glob("*.wav"))
+    if not wavs:
+        raise FileNotFoundError(f"No wav files in: {folder}")
+    return wavs
+
+def find_latest_mos_csv(results_dir: Path) -> Path:
+    cands = sorted(results_dir.glob("nisqa_mos_results_*.csv"))
+    if not cands:
+        raise FileNotFoundError(f"nisqa_mos_results_*.csv not found in: {results_dir}")
+    return cands[-1]
+
+def select_files() -> List[Path]:
+    wavs = scan_wavs(INPUT_WAV_DIR)
+    if SELECT_MODE == "first":
+        return wavs[:N_FILES]
+
+    # otherwise, use latest MOS csv
+    mos_csv = find_latest_mos_csv(RESULTS_DIR)
+    df = pd.read_csv(mos_csv)
+    if "filename" not in df.columns or "mos_pred" not in df.columns:
+        raise KeyError(f"Unexpected MOS CSV columns: {df.columns.tolist()}")
+
+    df = df.dropna(subset=["mos_pred"]).copy()
+    df = df.sort_values("mos_pred", ascending=True).reset_index(drop=True)
+
+    if SELECT_MODE == "lowest":
+        names = df.head(N_FILES)["filename"].tolist()
+    elif SELECT_MODE == "highest":
+        names = df.tail(N_FILES)["filename"].tolist()
+    else:
+        raise ValueError(f"Unknown SELECT_MODE: {SELECT_MODE}")
+
+    name_set = set(names)
+    picked = [p for p in wavs if p.name in name_set]
+    if len(picked) != len(names):
+        missing = [n for n in names if n not in {p.name for p in picked}]
+        print("[WARN] Some files not found in INPUT_WAV_DIR:", missing)
+    return picked
+
+
+# =============================================================================
+# [C] NISQA predictor (in-memory dataset via temp folder write is avoided)
+#     -> But NISQA's SpeechQualityDataset expects files on disk.
+#     -> So we DO write temporary wavs into results/_gain_sweep_tmp (local, offline).
+# =============================================================================
+@dataclass
+class NISQAPredictor:
+    model_path: Path
+    device_forced: Optional[str] = None  # None / "cpu" / "cuda"
+
+    def __post_init__(self):
+        ensure_sys_path()
+        from nisqa.NISQA_model import nisqaModel  # type: ignore
+
+        args = {
+            "mode": "predict_dir",  # safe init
+            "pretrained_model": str(self.model_path),
+            "data_dir": str(INPUT_WAV_DIR),  # dummy for init
+            "output_dir": "",
+            "tr_bs_val": 1,
+            "tr_num_workers": 0,
+            "tr_parallel": False,
+            "ms_channel": None,
+        }
+        if self.device_forced in ("cpu", "cuda"):
+            args["tr_device"] = self.device_forced
+
+        self._nisqa = nisqaModel(args)
+        self.device = str(self._nisqa.dev)
+
+    def predict_dir(self, data_dir: Path) -> pd.DataFrame:
+        """
+        Reuse the existing nisqaModel object but swap args['data_dir'] and reload datasets.
+        This mirrors how NISQA uses internal args/datasets. It's not public API,
+        but works because _loadDatasetsFolder reads self.args['data_dir'].
+        """
+        self._nisqa.args["mode"] = "predict_dir"
+        self._nisqa.args["data_dir"] = str(data_dir)
+        # reload datasets for new folder
+        self._nisqa._loadDatasets()  # internal method in NISQA_model.py
+        df = self._nisqa.predict()
+        return df
+
+
+def main():
+    # checks
+    if not MODEL_PATH.exists():
+        raise FileNotFoundError(f"MODEL_PATH not found: {MODEL_PATH}")
+    if not INPUT_WAV_DIR.exists():
+        raise FileNotFoundError(f"INPUT_WAV_DIR not found: {INPUT_WAV_DIR}")
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    picked = select_files()
+    print("Picked files:")
+    for p in picked:
+        print(" -", p.name)
+
+    predictor = NISQAPredictor(MODEL_PATH, device_forced=None)
+    print("NISQA device:", predictor.device)
+
+    # temp folder for gain sweep wavs (offline local write)
+    tmp_root = RESULTS_DIR / "_gain_sweep_tmp"
+    # clear old
+    if tmp_root.exists():
+        for f in tmp_root.glob("*.wav"):
+            try:
+                f.unlink()
+            except:
+                pass
+    tmp_root.mkdir(parents=True, exist_ok=True)
+
+    records: List[Dict[str, Any]] = []
+    start_all = time.perf_counter()
+
+    # For each gain, create gained wavs in tmp_root, run predict_dir once
+    for gdb in GAIN_DB_LIST:
+        # write gained copies
+        for src in picked:
+            x, sr = sf.read(str(src), always_2d=False)
+            x = to_mono(x).astype(np.float32)
+            xg = apply_gain_db(x, gdb)
+            if AVOID_CLIP:
+                xg = limit_peak_to_target(xg, CLIP_TARGET_PEAK_DBFS)
+            out_path = tmp_root / src.name
+            sf.write(str(out_path), xg, sr)
+
+        # run NISQA on tmp folder
+        t0 = time.perf_counter()
+        df_pred = predictor.predict_dir(tmp_root)
+        t1 = time.perf_counter()
+
+        # df_pred columns: deg, mos_pred, model (typically)
+        for _, r in df_pred.iterrows():
+            fn = str(r["deg"])
+            mos = float(r["mos_pred"])
+            # read again for RMS/peak after gain (cheap for N small)
+            x2, sr2 = sf.read(str(tmp_root / fn), always_2d=False)
+            x2 = to_mono(x2)
+            records.append({
+                "filename": fn,
+                "gain_db": float(gdb),
+                "mos_pred": mos,
+                "rms_dbfs": float(rms_dbfs(x2)),
+                "peak_dbfs": float(peak_dbfs(x2)),
+                "infer_time_s_for_gainbatch": float(t1 - t0),
+                "device": predictor.device,
+                "model": str(r.get("model", "NISQAv2_mos_only")),
+                "clip_avoid": bool(AVOID_CLIP),
+            })
+
+        print(f"[GAIN {gdb:+} dB] done. batch_time={t1-t0:.3f}s")
+
+    end_all = time.perf_counter()
+    df = pd.DataFrame(records).sort_values(["filename", "gain_db"]).reset_index(drop=True)
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_csv = RESULTS_DIR / f"gain_sweep_results_{ts}.csv"
+    df.to_csv(out_csv, index=False, encoding="utf-8-sig")
+    print("\nSaved:", out_csv)
+    print(f"Total runtime: {end_all-start_all:.2f}s")
+
+    # Plot: MOS vs gain for each file
+    plt.figure(figsize=(10, 5))
+    for fn, g in df.groupby("filename"):
+        plt.plot(g["gain_db"], g["mos_pred"], marker="o", label=fn)
+    plt.xlabel("Gain (dB)")
+    plt.ylabel("NISQA MOS (pred)")
+    plt.title("Gain sweep: MOS vs Gain (per file)")
+    plt.grid(True)
+    plt.legend(fontsize=8)
+
+    # Plot: RMS vs gain (sanity)
+    plt.figure(figsize=(10, 5))
+    for fn, g in df.groupby("filename"):
+        plt.plot(g["gain_db"], g["rms_dbfs"], marker="o", label=fn)
+    plt.xlabel("Gain (dB)")
+    plt.ylabel("RMS (dBFS)")
+    plt.title("Gain sweep sanity: RMS(dBFS) vs Gain (per file)")
+    plt.grid(True)
+    plt.legend(fontsize=8)
+
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
