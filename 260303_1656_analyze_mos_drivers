@@ -1,0 +1,267 @@
+# -*- coding: utf-8 -*-
+"""
+Analyze audio characteristics that often drive MOS differences.
+- Reads NISQA MOS result CSV (from your run_mos_predict_folder.py)
+- For each wav in INPUT_WAV_DIR:
+  * duration, sample rate, RMS(dBFS), peak(dBFS), crest factor
+  * silence ratio (low-energy frames)
+  * estimated SNR (percentile method)
+  * noise-floor spectrum (avg of lowest-energy frames)
+  * band energies (dB) for key speech bands
+- Merges everything into a new CSV under <project>/results/
+
+This helps explain "why MOS differs" without uploading audio.
+"""
+
+from __future__ import annotations
+from pathlib import Path
+import re
+import numpy as np
+import pandas as pd
+import soundfile as sf
+from scipy.signal import stft
+from datetime import datetime
+
+
+# =============================================================================
+# [1] 너가 수정하기 쉬운 설정(여기만)
+# =============================================================================
+PROJECT_ROOT = Path(__file__).resolve().parent
+NISQA_ROOT = PROJECT_ROOT / "NISQA_master"
+INPUT_WAV_DIR = NISQA_ROOT / "testdata"
+
+# ✅ 네가 만든 MOS 결과 CSV 경로(가장 최신 파일로 자동 찾게 할 수도 있음)
+# 1) 직접 지정:
+MOS_CSV_PATH = None  # 예: PROJECT_ROOT / "results" / "nisqa_mos_results_20260303_153000.csv"
+
+# 2) 자동으로 results 폴더에서 가장 최신 nisqa_mos_results_*.csv 찾기
+RESULTS_DIR = PROJECT_ROOT / "results"
+
+# 결과 저장
+OUT_PREFIX = "mos_driver_analysis"
+
+
+# =============================================================================
+# [2] 유틸
+# =============================================================================
+def to_mono(x: np.ndarray) -> np.ndarray:
+    if x.ndim == 1:
+        return x
+    return np.mean(x, axis=1)
+
+def rms_dbfs(x: np.ndarray, eps=1e-12) -> float:
+    rms = np.sqrt(np.mean(x.astype(np.float64) ** 2))
+    return 20.0 * np.log10(max(rms, eps))
+
+def peak_dbfs(x: np.ndarray, eps=1e-12) -> float:
+    pk = float(np.max(np.abs(x)))
+    return 20.0 * np.log10(max(pk, eps))
+
+def crest_factor_db(x: np.ndarray, eps=1e-12) -> float:
+    # peak / rms in dB
+    rms = np.sqrt(np.mean(x.astype(np.float64) ** 2))
+    pk = float(np.max(np.abs(x)))
+    return 20.0 * np.log10(max(pk, eps) / max(rms, eps))
+
+def frame_powers(x: np.ndarray, sr: int, frame_ms=20.0, hop_ms=10.0) -> np.ndarray:
+    fl = int(sr * frame_ms / 1000.0)
+    hl = int(sr * hop_ms / 1000.0)
+    if len(x) < fl:
+        return np.array([np.mean(x.astype(np.float64) ** 2)], dtype=np.float64)
+
+    powers = []
+    for s in range(0, len(x) - fl + 1, hl):
+        fr = x[s:s+fl].astype(np.float64)
+        powers.append(np.mean(fr ** 2))
+    return np.array(powers, dtype=np.float64)
+
+def silence_ratio(x: np.ndarray, sr: int, frame_ms=20.0, hop_ms=10.0, thr_db=-50.0) -> float:
+    # frames with RMS(dBFS) < thr_db
+    p = frame_powers(x, sr, frame_ms, hop_ms)
+    rms = np.sqrt(np.maximum(p, 1e-12))
+    db = 20.0 * np.log10(np.maximum(rms, 1e-12))
+    return float(np.mean(db < thr_db))
+
+def estimate_snr_percentile_db(
+    x: np.ndarray, sr: int,
+    frame_ms=20.0, hop_ms=10.0,
+    noise_pct=10.0, signal_pct=90.0
+) -> float:
+    p = frame_powers(x, sr, frame_ms, hop_ms)
+    p_noise = np.percentile(p, noise_pct)
+    p_signal = np.percentile(p, signal_pct)
+    p_noise = max(p_noise, 1e-12)
+    p_signal = max(p_signal, 1e-12)
+    return float(10.0 * np.log10(p_signal / p_noise))
+
+def band_energy_db_from_fft(x: np.ndarray, sr: int, bands, n_fft=65536) -> dict:
+    x = x.astype(np.float64)
+    x = x - np.mean(x)
+    w = np.hanning(len(x))
+    X = np.fft.rfft(x * w, n=n_fft)
+    freqs = np.fft.rfftfreq(n_fft, 1.0/sr)
+    mag = np.abs(X)
+    mag_db = 20*np.log10(np.maximum(mag, 1e-12))
+
+    out = {}
+    for lo, hi in bands:
+        idx = (freqs >= lo) & (freqs < hi)
+        out[f"band_{lo}_{hi}_mag_db"] = float(np.mean(mag_db[idx])) if np.any(idx) else np.nan
+    return out
+
+def noise_floor_spectrum_db(x: np.ndarray, sr: int, frame_ms=20.0, hop_ms=10.0, low_energy_pct=10.0,
+                            n_fft=2048):
+    """
+    노이즈 바닥 추정:
+    - 프레임 파워 하위 low_energy_pct% 프레임만 모아서 평균 스펙트럼
+    반환: (freqs, spec_db)
+    """
+    fl = int(sr * frame_ms / 1000.0)
+    hl = int(sr * hop_ms / 1000.0)
+    if len(x) < fl:
+        fl = len(x)
+        hl = max(1, fl // 2)
+
+    # 프레임 파워 계산
+    p = frame_powers(x, sr, frame_ms, hop_ms)
+    thr = np.percentile(p, low_energy_pct)
+
+    # low-energy frame 인덱스 모으기
+    starts = list(range(0, len(x) - fl + 1, hl))
+    keep = [i for i, s in enumerate(starts) if i < len(p) and p[i] <= thr]
+    if not keep:
+        keep = list(range(min(len(starts), 5)))  # fallback
+
+    # STFT로 스펙트럼 추정
+    f, t, Z = stft(x.astype(np.float64), fs=sr, window="hann", nperseg=n_fft, noverlap=n_fft//2,
+                  boundary=None, padded=False)
+    mag = np.abs(Z)  # (freq, time)
+
+    # keep 프레임을 time축 인덱스에 근사 매핑
+    # stft의 time 프레임 수와 starts 수가 다를 수 있어서 비율로 맞춤
+    time_bins = mag.shape[1]
+    if time_bins <= 1:
+        spec = mag[:, 0]
+    else:
+        mapped = [min(int(round(i * (time_bins-1) / max(len(starts)-1, 1))), time_bins-1) for i in keep]
+        spec = np.mean(mag[:, mapped], axis=1)
+
+    spec_db = 20*np.log10(np.maximum(spec, 1e-12))
+    return f, spec_db
+
+
+def find_latest_mos_csv(results_dir: Path) -> Path:
+    cands = sorted(results_dir.glob("nisqa_mos_results_*.csv"))
+    if not cands:
+        raise FileNotFoundError(f"results 폴더에서 nisqa_mos_results_*.csv 를 찾지 못했습니다: {results_dir}")
+    return cands[-1]
+
+
+def main():
+    # MOS CSV 선택
+    if MOS_CSV_PATH is None:
+        mos_csv = find_latest_mos_csv(RESULTS_DIR)
+    else:
+        mos_csv = Path(MOS_CSV_PATH)
+
+    if not mos_csv.exists():
+        raise FileNotFoundError(f"MOS CSV not found: {mos_csv}")
+
+    if not INPUT_WAV_DIR.exists():
+        raise FileNotFoundError(f"INPUT_WAV_DIR not found: {INPUT_WAV_DIR}")
+
+    mos_df = pd.read_csv(mos_csv)
+    if "filename" not in mos_df.columns or "mos_pred" not in mos_df.columns:
+        raise KeyError(f"MOS CSV 컬럼이 예상과 다릅니다. columns={mos_df.columns.tolist()}")
+
+    wav_paths = sorted(INPUT_WAV_DIR.glob("*.wav"))
+    if not wav_paths:
+        raise FileNotFoundError(f"No wavs found: {INPUT_WAV_DIR}")
+
+    # 분석할 대역 (음성 품질 관련)
+    bands = [(20,80), (80,250), (250,500), (500,1000), (1000,2000), (2000,4000), (4000,8000)]
+
+    rows = []
+    for wp in wav_paths:
+        x, sr = sf.read(str(wp), always_2d=False)
+        x = to_mono(x)
+
+        dur = float(len(x)) / sr
+        r_db = rms_dbfs(x)
+        p_db = peak_dbfs(x)
+        crest_db = crest_factor_db(x)
+        sil = silence_ratio(x, sr, thr_db=-50.0)
+        snr_est = estimate_snr_percentile_db(x, sr, noise_pct=10.0, signal_pct=90.0)
+
+        band_feats = band_energy_db_from_fft(x, sr, bands)
+
+        # noise floor spectrum summary (we store a few key points, not full vector)
+        f_nf, nf_db = noise_floor_spectrum_db(x, sr, low_energy_pct=10.0, n_fft=2048)
+        # pick representative bins
+        def pick_near(freq):
+            idx = int(np.argmin(np.abs(f_nf - freq)))
+            return float(nf_db[idx])
+
+        nf_100 = pick_near(100)
+        nf_300 = pick_near(300)
+        nf_1000 = pick_near(1000)
+        nf_3000 = pick_near(3000)
+        nf_6000 = pick_near(6000)
+
+        rows.append({
+            "filename": wp.name,
+            "sample_rate_hz": int(sr),
+            "duration_s": dur,
+            "rms_dbfs": r_db,
+            "peak_dbfs": p_db,
+            "crest_db": crest_db,
+            "silence_ratio_thr_-50db": sil,
+            "snr_est_db_p10_p90": snr_est,
+            "noise_floor_db_100Hz": nf_100,
+            "noise_floor_db_300Hz": nf_300,
+            "noise_floor_db_1000Hz": nf_1000,
+            "noise_floor_db_3000Hz": nf_3000,
+            "noise_floor_db_6000Hz": nf_6000,
+            **band_feats,
+        })
+
+    feat_df = pd.DataFrame(rows)
+
+    # merge with mos
+    merged = mos_df.merge(feat_df, on="filename", how="left")
+
+    # save
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_csv = RESULTS_DIR / f"{OUT_PREFIX}_{ts}.csv"
+    merged.to_csv(out_csv, index=False, encoding="utf-8-sig")
+
+    # quick “what drives low MOS?” helpers
+    # show top-10 lowest MOS and a few drivers
+    show_cols = [
+        "filename", "mos_pred", "duration_s", "rms_dbfs", "snr_est_db_p10_p90",
+        "silence_ratio_thr_-50db",
+        "noise_floor_db_100Hz", "noise_floor_db_1000Hz", "noise_floor_db_3000Hz", "noise_floor_db_6000Hz",
+    ]
+    show_cols = [c for c in show_cols if c in merged.columns]
+
+    print("\n=== Saved analysis CSV ===")
+    print(out_csv)
+
+    print("\n=== Lowest MOS samples (preview) ===")
+    print(merged.sort_values("mos_pred", ascending=True)[show_cols].head(10).to_string(index=False))
+
+    print("\n=== Highest MOS samples (preview) ===")
+    print(merged.sort_values("mos_pred", ascending=False)[show_cols].head(10).to_string(index=False))
+
+    # correlation hint (numeric only)
+    num_cols = merged.select_dtypes(include=[np.number]).columns.tolist()
+    if "mos_pred" in num_cols:
+        corr = merged[num_cols].corr(numeric_only=True)["mos_pred"].sort_values()
+        print("\n=== Correlation with mos_pred (rough hint) ===")
+        print(corr.head(15).to_string())
+        print("\n---")
+        print(corr.tail(15).to_string())
+
+
+if __name__ == "__main__":
+    main()
