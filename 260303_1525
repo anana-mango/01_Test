@@ -107,74 +107,33 @@ class NISQAPredictor:
     device_forced: str | None = None  # None / "cpu" / "cuda"
 
     def __post_init__(self):
-
-def __post_init__(self):
-    ensure_sys_path()
-    from nisqa.NISQA_model import nisqaModel  # type: ignore
-    from nisqa import NISQA_lib as NL         # type: ignore
-
-    # ✅ predict_dir 모드로 초기화 (deg 불필요)
-    args = {
-        "mode": "predict_dir",
-        "pretrained_model": str(self.model_path),
-        "data_dir": str(INPUT_WAV_DIR),
-        "output_dir": "",          # 결과파일 자동저장 끔
-        "ms_channel": None,
-        "tr_bs_val": 1,
-        "tr_num_workers": 0,
-        "tr_parallel": False,
-    }
-
-    # 강제 디바이스 옵션(원하면)
-    if self.device_forced in ("cpu", "cuda"):
-        args["tr_device"] = self.device_forced
-
-    self._nisqa = nisqaModel(args)
-
-    # device / model / args 확보
-    self.device = str(self._nisqa.dev)
-    self.args = dict(self._nisqa.args)
-    self.model = self._nisqa.model
-    self.dev = self._nisqa.dev
-    self.NL = NL
-
-
         ensure_sys_path()
-        # Import after sys.path setup
         from nisqa.NISQA_model import nisqaModel  # type: ignore
-
-        # Minimal args: pretrained_model must be set BEFORE init
-        # _loadModel() will load checkpoint and fill many defaults. 1
+        from nisqa import NISQA_lib as NL         # type: ignore
+    
+        # ✅ predict_dir 모드로 초기화 (deg 불필요)
         args = {
-            "mode": "predict_file",  # we'll build per-file dataset
+            "mode": "predict_dir",
             "pretrained_model": str(self.model_path),
-            "deg": None,             # filled later
-            "output_dir": "",        # prevent auto-writing NISQA_results.csv
-            "ms_channel": None,      # stereo: None means default behavior
+            "data_dir": str(INPUT_WAV_DIR),
+            "output_dir": "",          # 결과파일 자동저장 끔
+            "ms_channel": None,
             "tr_bs_val": 1,
             "tr_num_workers": 0,
             "tr_parallel": False,
         }
-
-        # Force device if requested
+    
+        # 강제 디바이스 옵션(원하면)
         if self.device_forced in ("cpu", "cuda"):
             args["tr_device"] = self.device_forced
-
-        # Initialize model once (loads weights)
+    
         self._nisqa = nisqaModel(args)
-
-        # capture device decided by NISQA internal logic 2
+    
+        # device / model / args 확보
         self.device = str(self._nisqa.dev)
-
-        # Keep a copy of args after checkpoint update (important ms_* fields)
         self.args = dict(self._nisqa.args)
-
-        # We will reuse the loaded torch model
         self.model = self._nisqa.model
         self.dev = self._nisqa.dev
-
-        # Import dataset + predict function
-        from nisqa import NISQA_lib as NL  # type: ignore
         self.NL = NL
 
     def predict_one(self, wav_path: Path) -> float:
@@ -298,22 +257,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-Traceback (most recent call last):
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\run_mos_predict_folder.py", line 267, in <module>
-    main()
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\run_mos_predict_folder.py", line 221, in main
-    predictor = NISQAPredictor(model_path=MODEL_PATH, device_forced=None)
-  File "<string>", line 5, in __init__
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\run_mos_predict_folder.py", line 132, in __post_init__
-    self._nisqa = nisqaModel(args)
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\nisqa\NISQA_model.py", line 35, in __init__
-    self._loadDatasets()
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\nisqa\NISQA_model.py", line 734, in _loadDatasets
-    self._loadDatasetsFile()
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\nisqa\NISQA_model.py", line 781, in _loadDatasetsFile
-    data_dir = os.path.dirname(self.args['deg'])
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\ntpath.py", line 224, in dirname
-    return split(p)[0]
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\ntpath.py", line 186, in split
-    p = os.fspath(p)
-TypeError: expected str, bytes or os.PathLike object, not NoneType
