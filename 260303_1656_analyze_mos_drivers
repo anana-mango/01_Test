@@ -1,45 +1,51 @@
 # -*- coding: utf-8 -*-
 """
-Analyze audio characteristics that often drive MOS differences.
-- Reads NISQA MOS result CSV (from your run_mos_predict_folder.py)
-- For each wav in INPUT_WAV_DIR:
-  * duration, sample rate, RMS(dBFS), peak(dBFS), crest factor
-  * silence ratio (low-energy frames)
-  * estimated SNR (percentile method)
-  * noise-floor spectrum (avg of lowest-energy frames)
-  * band energies (dB) for key speech bands
-- Merges everything into a new CSV under <project>/results/
-
-This helps explain "why MOS differs" without uploading audio.
+All-in-one MOS driver analysis + plots (offline)
+- Reads the latest NISQA MOS CSV: results/nisqa_mos_results_*.csv
+- Computes per-file audio features (SNR proxy, noise floor, band energies, etc.)
+- Merges to a new CSV: results/mos_driver_analysis_YYYYMMDD_HHMMSS.csv
+- Shows plots in VS Code:
+  1) MOS vs estimated SNR scatter
+  2) LOW vs HIGH MOS group mean spectrum comparison
+  3) Representative LOW/HIGH spectrograms (log-frequency)
+  4) Optional: MOS vs noise-floor points (1k/3k/6k) scatter
 """
 
 from __future__ import annotations
 from pathlib import Path
-import re
 import numpy as np
 import pandas as pd
 import soundfile as sf
+import matplotlib.pyplot as plt
 from scipy.signal import stft
 from datetime import datetime
 
 
 # =============================================================================
-# [1] 너가 수정하기 쉬운 설정(여기만)
+# [1] 설정(여기만 수정하면 됨)
 # =============================================================================
 PROJECT_ROOT = Path(__file__).resolve().parent
 NISQA_ROOT = PROJECT_ROOT / "NISQA_master"
 INPUT_WAV_DIR = NISQA_ROOT / "testdata"
-
-# ✅ 네가 만든 MOS 결과 CSV 경로(가장 최신 파일로 자동 찾게 할 수도 있음)
-# 1) 직접 지정:
-MOS_CSV_PATH = None  # 예: PROJECT_ROOT / "results" / "nisqa_mos_results_20260303_153000.csv"
-
-# 2) 자동으로 results 폴더에서 가장 최신 nisqa_mos_results_*.csv 찾기
 RESULTS_DIR = PROJECT_ROOT / "results"
 
-# 결과 저장
+# 분석 결과 저장 파일 prefix
 OUT_PREFIX = "mos_driver_analysis"
 
+# 그래프용: 상위/하위 그룹 크기
+TOP_N = 5
+
+# (선택) MOS CSV를 직접 지정하고 싶으면 여기 지정
+MOS_CSV_PATH = None  # 예: RESULTS_DIR / "nisqa_mos_results_20260303_153000.csv"
+
+# 스펙트럼/스펙트로그램 파라미터
+AVG_SPEC_NFFT = 65536
+SPEC_XLIM_HZ = 8000
+STFT_NFFT = 2048
+STFT_HOP = 512
+
+# 노이즈 바닥 추정
+NOISE_FLOOR_LOW_ENERGY_PCT = 10.0
 
 # =============================================================================
 # [2] 유틸
@@ -58,7 +64,6 @@ def peak_dbfs(x: np.ndarray, eps=1e-12) -> float:
     return 20.0 * np.log10(max(pk, eps))
 
 def crest_factor_db(x: np.ndarray, eps=1e-12) -> float:
-    # peak / rms in dB
     rms = np.sqrt(np.mean(x.astype(np.float64) ** 2))
     pk = float(np.max(np.abs(x)))
     return 20.0 * np.log10(max(pk, eps) / max(rms, eps))
@@ -68,31 +73,40 @@ def frame_powers(x: np.ndarray, sr: int, frame_ms=20.0, hop_ms=10.0) -> np.ndarr
     hl = int(sr * hop_ms / 1000.0)
     if len(x) < fl:
         return np.array([np.mean(x.astype(np.float64) ** 2)], dtype=np.float64)
-
-    powers = []
+    out = []
     for s in range(0, len(x) - fl + 1, hl):
         fr = x[s:s+fl].astype(np.float64)
-        powers.append(np.mean(fr ** 2))
-    return np.array(powers, dtype=np.float64)
+        out.append(np.mean(fr ** 2))
+    return np.array(out, dtype=np.float64)
 
-def silence_ratio(x: np.ndarray, sr: int, frame_ms=20.0, hop_ms=10.0, thr_db=-50.0) -> float:
-    # frames with RMS(dBFS) < thr_db
+def silence_ratio(x: np.ndarray, sr: int, thr_db=-50.0, frame_ms=20.0, hop_ms=10.0) -> float:
     p = frame_powers(x, sr, frame_ms, hop_ms)
     rms = np.sqrt(np.maximum(p, 1e-12))
     db = 20.0 * np.log10(np.maximum(rms, 1e-12))
     return float(np.mean(db < thr_db))
 
-def estimate_snr_percentile_db(
-    x: np.ndarray, sr: int,
-    frame_ms=20.0, hop_ms=10.0,
-    noise_pct=10.0, signal_pct=90.0
-) -> float:
-    p = frame_powers(x, sr, frame_ms, hop_ms)
-    p_noise = np.percentile(p, noise_pct)
-    p_signal = np.percentile(p, signal_pct)
-    p_noise = max(p_noise, 1e-12)
-    p_signal = max(p_signal, 1e-12)
+def estimate_snr_percentile_db(x: np.ndarray, sr: int, noise_pct=10.0, signal_pct=90.0) -> float:
+    """
+    Quick SNR proxy: p90(power) / p10(power) in dB.
+    Useful for relative comparisons, not a strict standard SNR.
+    """
+    p = frame_powers(x, sr)
+    p_noise = max(np.percentile(p, noise_pct), 1e-12)
+    p_signal = max(np.percentile(p, signal_pct), 1e-12)
     return float(10.0 * np.log10(p_signal / p_noise))
+
+def avg_spectrum_db(x: np.ndarray, sr: int, n_fft=65536) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Whole-file average amplitude spectrum (dB magnitude, relative).
+    Used for LOW/HIGH group comparison.
+    """
+    x = x.astype(np.float64)
+    x = x - np.mean(x)
+    w = np.hanning(len(x))
+    X = np.fft.rfft(x * w, n=n_fft)
+    freqs = np.fft.rfftfreq(n_fft, 1.0/sr)
+    mag_db = 20*np.log10(np.maximum(np.abs(X), 1e-12))
+    return freqs, mag_db
 
 def band_energy_db_from_fft(x: np.ndarray, sr: int, bands, n_fft=65536) -> dict:
     x = x.astype(np.float64)
@@ -102,53 +116,56 @@ def band_energy_db_from_fft(x: np.ndarray, sr: int, bands, n_fft=65536) -> dict:
     freqs = np.fft.rfftfreq(n_fft, 1.0/sr)
     mag = np.abs(X)
     mag_db = 20*np.log10(np.maximum(mag, 1e-12))
-
     out = {}
     for lo, hi in bands:
         idx = (freqs >= lo) & (freqs < hi)
         out[f"band_{lo}_{hi}_mag_db"] = float(np.mean(mag_db[idx])) if np.any(idx) else np.nan
     return out
 
-def noise_floor_spectrum_db(x: np.ndarray, sr: int, frame_ms=20.0, hop_ms=10.0, low_energy_pct=10.0,
-                            n_fft=2048):
+def noise_floor_spectrum_db(x: np.ndarray, sr: int,
+                            low_energy_pct=10.0,
+                            n_fft=2048,
+                            hop=512) -> tuple[np.ndarray, np.ndarray]:
     """
-    노이즈 바닥 추정:
-    - 프레임 파워 하위 low_energy_pct% 프레임만 모아서 평균 스펙트럼
-    반환: (freqs, spec_db)
+    Noise-floor proxy spectrum:
+    - compute STFT magnitude
+    - find low-energy time frames (based on frame power percentile)
+    - average their spectrum (dB magnitude)
     """
-    fl = int(sr * frame_ms / 1000.0)
-    hl = int(sr * hop_ms / 1000.0)
-    if len(x) < fl:
-        fl = len(x)
-        hl = max(1, fl // 2)
-
-    # 프레임 파워 계산
-    p = frame_powers(x, sr, frame_ms, hop_ms)
+    # frame power threshold (time-domain)
+    p = frame_powers(x, sr)
     thr = np.percentile(p, low_energy_pct)
 
-    # low-energy frame 인덱스 모으기
-    starts = list(range(0, len(x) - fl + 1, hl))
-    keep = [i for i, s in enumerate(starts) if i < len(p) and p[i] <= thr]
-    if not keep:
-        keep = list(range(min(len(starts), 5)))  # fallback
-
-    # STFT로 스펙트럼 추정
-    f, t, Z = stft(x.astype(np.float64), fs=sr, window="hann", nperseg=n_fft, noverlap=n_fft//2,
-                  boundary=None, padded=False)
+    # STFT
+    f, t, Z = stft(x.astype(np.float64), fs=sr, window="hann",
+                   nperseg=n_fft, noverlap=n_fft-hop,
+                   boundary=None, padded=False)
     mag = np.abs(Z)  # (freq, time)
+    if mag.shape[1] == 0:
+        return f, 20*np.log10(np.maximum(np.abs(np.fft.rfft(x, n=n_fft)), 1e-12))
 
-    # keep 프레임을 time축 인덱스에 근사 매핑
-    # stft의 time 프레임 수와 starts 수가 다를 수 있어서 비율로 맞춤
-    time_bins = mag.shape[1]
-    if time_bins <= 1:
-        spec = mag[:, 0]
+    # map time-domain frames to STFT frames (rough proportional mapping)
+    td_frames = len(p)
+    stft_frames = mag.shape[1]
+    if td_frames <= 1:
+        low_idx = list(range(stft_frames))
     else:
-        mapped = [min(int(round(i * (time_bins-1) / max(len(starts)-1, 1))), time_bins-1) for i in keep]
-        spec = np.mean(mag[:, mapped], axis=1)
+        low_td = np.where(p <= thr)[0]
+        if len(low_td) == 0:
+            low_td = np.array([0], dtype=int)
+        low_idx = [min(int(round(i * (stft_frames - 1) / (td_frames - 1))), stft_frames - 1) for i in low_td]
+        low_idx = sorted(set(low_idx))
 
+    spec = np.mean(mag[:, low_idx], axis=1)
     spec_db = 20*np.log10(np.maximum(spec, 1e-12))
     return f, spec_db
 
+def spectrogram_db(x: np.ndarray, sr: int, n_fft=2048, hop=512) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    f, t, Z = stft(x.astype(np.float64), fs=sr, window="hann",
+                   nperseg=n_fft, noverlap=n_fft-hop,
+                   boundary=None, padded=False)
+    S_db = 20*np.log10(np.maximum(np.abs(Z), 1e-12))
+    return f, t, S_db
 
 def find_latest_mos_csv(results_dir: Path) -> Path:
     cands = sorted(results_dir.glob("nisqa_mos_results_*.csv"))
@@ -157,8 +174,11 @@ def find_latest_mos_csv(results_dir: Path) -> Path:
     return cands[-1]
 
 
+# =============================================================================
+# [3] 메인
+# =============================================================================
 def main():
-    # MOS CSV 선택
+    # 1) MOS CSV 선택
     if MOS_CSV_PATH is None:
         mos_csv = find_latest_mos_csv(RESULTS_DIR)
     else:
@@ -166,7 +186,6 @@ def main():
 
     if not mos_csv.exists():
         raise FileNotFoundError(f"MOS CSV not found: {mos_csv}")
-
     if not INPUT_WAV_DIR.exists():
         raise FileNotFoundError(f"INPUT_WAV_DIR not found: {INPUT_WAV_DIR}")
 
@@ -174,11 +193,13 @@ def main():
     if "filename" not in mos_df.columns or "mos_pred" not in mos_df.columns:
         raise KeyError(f"MOS CSV 컬럼이 예상과 다릅니다. columns={mos_df.columns.tolist()}")
 
+    # 2) 파일 목록
     wav_paths = sorted(INPUT_WAV_DIR.glob("*.wav"))
     if not wav_paths:
-        raise FileNotFoundError(f"No wavs found: {INPUT_WAV_DIR}")
+        raise FileNotFoundError(f"No wav files found: {INPUT_WAV_DIR}")
 
-    # 분석할 대역 (음성 품질 관련)
+    # 3) 수치 특징 계산
+    # 음성 품질 관련 주요 대역
     bands = [(20,80), (80,250), (250,500), (500,1000), (1000,2000), (2000,4000), (4000,8000)]
 
     rows = []
@@ -192,55 +213,48 @@ def main():
         crest_db = crest_factor_db(x)
         sil = silence_ratio(x, sr, thr_db=-50.0)
         snr_est = estimate_snr_percentile_db(x, sr, noise_pct=10.0, signal_pct=90.0)
-
         band_feats = band_energy_db_from_fft(x, sr, bands)
 
-        # noise floor spectrum summary (we store a few key points, not full vector)
-        f_nf, nf_db = noise_floor_spectrum_db(x, sr, low_energy_pct=10.0, n_fft=2048)
-        # pick representative bins
+        # noise-floor spectrum -> 대표 지점 샘플링
+        f_nf, nf_db = noise_floor_spectrum_db(x, sr, low_energy_pct=NOISE_FLOOR_LOW_ENERGY_PCT,
+                                              n_fft=STFT_NFFT, hop=STFT_HOP)
         def pick_near(freq):
             idx = int(np.argmin(np.abs(f_nf - freq)))
             return float(nf_db[idx])
 
-        nf_100 = pick_near(100)
-        nf_300 = pick_near(300)
-        nf_1000 = pick_near(1000)
-        nf_3000 = pick_near(3000)
-        nf_6000 = pick_near(6000)
-
         rows.append({
             "filename": wp.name,
-            "sample_rate_hz": int(sr),
-            "duration_s": dur,
-            "rms_dbfs": r_db,
-            "peak_dbfs": p_db,
+            "sample_rate_hz_local": int(sr),
+            "duration_s_local": dur,
+            "rms_dbfs_local": r_db,
+            "peak_dbfs_local": p_db,
             "crest_db": crest_db,
             "silence_ratio_thr_-50db": sil,
             "snr_est_db_p10_p90": snr_est,
-            "noise_floor_db_100Hz": nf_100,
-            "noise_floor_db_300Hz": nf_300,
-            "noise_floor_db_1000Hz": nf_1000,
-            "noise_floor_db_3000Hz": nf_3000,
-            "noise_floor_db_6000Hz": nf_6000,
-            **band_feats,
+            "noise_floor_db_100Hz": pick_near(100),
+            "noise_floor_db_300Hz": pick_near(300),
+            "noise_floor_db_1000Hz": pick_near(1000),
+            "noise_floor_db_3000Hz": pick_near(3000),
+            "noise_floor_db_6000Hz": pick_near(6000),
+            **band_feats
         })
 
     feat_df = pd.DataFrame(rows)
 
-    # merge with mos
+    # 4) MOS CSV와 merge
     merged = mos_df.merge(feat_df, on="filename", how="left")
 
-    # save
+    # 5) 저장
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_csv = RESULTS_DIR / f"{OUT_PREFIX}_{ts}.csv"
     merged.to_csv(out_csv, index=False, encoding="utf-8-sig")
 
-    # quick “what drives low MOS?” helpers
-    # show top-10 lowest MOS and a few drivers
+    # 6) 콘솔 프리뷰
     show_cols = [
-        "filename", "mos_pred", "duration_s", "rms_dbfs", "snr_est_db_p10_p90",
+        "filename", "mos_pred",
+        "duration_s_local", "rms_dbfs_local", "snr_est_db_p10_p90",
         "silence_ratio_thr_-50db",
-        "noise_floor_db_100Hz", "noise_floor_db_1000Hz", "noise_floor_db_3000Hz", "noise_floor_db_6000Hz",
+        "noise_floor_db_1000Hz", "noise_floor_db_3000Hz", "noise_floor_db_6000Hz",
     ]
     show_cols = [c for c in show_cols if c in merged.columns]
 
@@ -253,7 +267,7 @@ def main():
     print("\n=== Highest MOS samples (preview) ===")
     print(merged.sort_values("mos_pred", ascending=False)[show_cols].head(10).to_string(index=False))
 
-    # correlation hint (numeric only)
+    # correlation hint
     num_cols = merged.select_dtypes(include=[np.number]).columns.tolist()
     if "mos_pred" in num_cols:
         corr = merged[num_cols].corr(numeric_only=True)["mos_pred"].sort_values()
@@ -261,6 +275,110 @@ def main():
         print(corr.head(15).to_string())
         print("\n---")
         print(corr.tail(15).to_string())
+
+    # =============================================================================
+    # [4] 그래프 (VS Code에서 plt.show()로 표시)
+    # =============================================================================
+    merged_plot = merged.dropna(subset=["mos_pred"]).copy()
+    merged_plot = merged_plot.sort_values("mos_pred", ascending=True).reset_index(drop=True)
+
+    low = merged_plot.head(TOP_N)
+    high = merged_plot.tail(TOP_N)
+
+    def load_wav_by_name(name: str):
+        p = INPUT_WAV_DIR / name
+        x, sr = sf.read(str(p), always_2d=False)
+        return to_mono(x), sr
+
+    # (A) MOS vs SNR 산점도
+    if "snr_est_db_p10_p90" in merged_plot.columns:
+        plt.figure(figsize=(8, 5))
+        plt.scatter(merged_plot["snr_est_db_p10_p90"], merged_plot["mos_pred"])
+        plt.xlabel("Estimated SNR (dB) [p10 vs p90 frame power]")
+        plt.ylabel("MOS (pred)")
+        plt.title("MOS vs Estimated SNR (higher SNR → usually higher MOS)")
+        plt.grid(True)
+
+    # (B) MOS vs noise-floor 산점도 (1k/3k/6k)
+    nf_cols = ["noise_floor_db_1000Hz", "noise_floor_db_3000Hz", "noise_floor_db_6000Hz"]
+    nf_cols = [c for c in nf_cols if c in merged_plot.columns]
+    for c in nf_cols:
+        plt.figure(figsize=(8, 5))
+        plt.scatter(merged_plot[c], merged_plot["mos_pred"])
+        plt.xlabel(f"{c} (dB magnitude, low-energy frames)")
+        plt.ylabel("MOS (pred)")
+        plt.title(f"MOS vs Noise Floor proxy: {c} (higher noise floor → usually lower MOS)")
+        plt.grid(True)
+
+    # (C) LOW vs HIGH 평균 스펙트럼 비교
+    def mean_spectrum(files: list[str]):
+        specs = []
+        freqs_ref = None
+        for fn in files:
+            x, sr = load_wav_by_name(fn)
+            freqs, mag_db = avg_spectrum_db(x, sr, n_fft=AVG_SPEC_NFFT)
+            if freqs_ref is None:
+                freqs_ref = freqs
+            else:
+                mag_db = np.interp(freqs_ref, freqs, mag_db)
+            specs.append(mag_db)
+        return freqs_ref, np.mean(np.stack(specs, axis=0), axis=0)
+
+    low_files = low["filename"].tolist()
+    high_files = high["filename"].tolist()
+    f_ref, low_spec = mean_spectrum(low_files)
+    _, high_spec = mean_spectrum(high_files)
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(f_ref, low_spec, label=f"LOW MOS mean (N={TOP_N})")
+    plt.plot(f_ref, high_spec, label=f"HIGH MOS mean (N={TOP_N})")
+    plt.xlim(0, SPEC_XLIM_HZ)
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("Magnitude (dB, relative)")
+    plt.title("Average Spectrum: LOW vs HIGH MOS group")
+    plt.grid(True)
+    plt.legend()
+
+    # (D) 대표 1개씩 스펙트로그램(로그 주파수)
+    rep_low = low.iloc[0]["filename"]
+    rep_high = high.iloc[-1]["filename"]
+
+    xL, srL = load_wav_by_name(rep_low)
+    xH, srH = load_wav_by_name(rep_high)
+
+    fL, tL, SL = spectrogram_db(xL, srL, n_fft=STFT_NFFT, hop=STFT_HOP)
+    fH, tH, SH = spectrogram_db(xH, srH, n_fft=STFT_NFFT, hop=STFT_HOP)
+
+    vmax = max(np.percentile(SL, 99), np.percentile(SH, 99))
+    vmin = vmax - 80
+
+    plt.figure(figsize=(12, 6))
+    plt.subplot(2, 1, 1)
+    plt.pcolormesh(tL, fL, SL, shading="auto", vmin=vmin, vmax=vmax)
+    plt.yscale("log")
+    plt.ylim(50, min(SPEC_XLIM_HZ, srL/2))
+    plt.title(f"LOW MOS example: {rep_low} | MOS={float(low.iloc[0]['mos_pred']):.3f}")
+    plt.ylabel("Frequency (Hz, log)")
+    plt.colorbar(label="dB")
+
+    plt.subplot(2, 1, 2)
+    plt.pcolormesh(tH, fH, SH, shading="auto", vmin=vmin, vmax=vmax)
+    plt.yscale("log")
+    plt.ylim(50, min(SPEC_XLIM_HZ, srH/2))
+    plt.title(f"HIGH MOS example: {rep_high} | MOS={float(high.iloc[-1]['mos_pred']):.3f}")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Frequency (Hz, log)")
+    plt.colorbar(label="dB")
+
+    print("\n=== Plot selections ===")
+    print("Latest MOS CSV:", mos_csv)
+    print("LOW group:", low_files)
+    print("HIGH group:", high_files)
+    print("Representative LOW:", rep_low)
+    print("Representative HIGH:", rep_high)
+
+    # show all figures
+    plt.show()
 
 
 if __name__ == "__main__":
