@@ -265,3 +265,23 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+Traceback (most recent call last):
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\run_mos_predict_folder.py", line 267, in <module>
+    main()
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\run_mos_predict_folder.py", line 221, in main
+    predictor = NISQAPredictor(model_path=MODEL_PATH, device_forced=None)
+  File "<string>", line 5, in __init__
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\run_mos_predict_folder.py", line 132, in __post_init__
+    self._nisqa = nisqaModel(args)
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\nisqa\NISQA_model.py", line 35, in __init__
+    self._loadDatasets()
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\nisqa\NISQA_model.py", line 734, in _loadDatasets
+    self._loadDatasetsFile()
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\NISQA_master\nisqa\NISQA_model.py", line 781, in _loadDatasetsFile
+    data_dir = os.path.dirname(self.args['deg'])
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\ntpath.py", line 224, in dirname
+    return split(p)[0]
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\ntpath.py", line 186, in split
+    p = os.fspath(p)
+TypeError: expected str, bytes or os.PathLike object, not NoneType
