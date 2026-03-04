@@ -1,20 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Gain sweep experiment for NISQA MOS (offline)
-- Pick N wav files from INPUT_WAV_DIR (top/bottom/first N)
-- Apply gain in dB (e.g., -12, -6, 0, +6) in-memory (no wav files written)
-- For each gain, run NISQA MOS prediction and plot MOS vs gain
-- Also plot RMS(dBFS) vs gain as sanity check
-- Saves CSV results under <project>/results/ with timestamp
+Robust Gain Sweep for NISQA MOS (offline)
+- Applies gain to selected wavs and predicts MOS using NISQA mos_only model
+- Automatically fixes the "n_wins > ms_max_segments" error by increasing ms_max_segments and retrying
+- Saves CSV under <project>/results/ and shows plots
 
-Requires:
-- NISQA_master present locally
-- weights/nisqa_mos_only.tar
-- soundfile, numpy, pandas, matplotlib installed
+This does NOT call run_predict.py (no subprocess). It imports NISQA internals directly.
 """
 
 from __future__ import annotations
 
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -37,19 +33,23 @@ INPUT_WAV_DIR = NISQA_ROOT / "testdata"
 MODEL_PATH = NISQA_ROOT / "weights" / "nisqa_mos_only.tar"
 RESULTS_DIR = PROJECT_ROOT / "results"
 
-# 게인 스윕 값(dB) - 필요하면 바꿔
+# 게인 스윕 값(dB)
 GAIN_DB_LIST = [-18, -12, -6, 0, +6, +12]
 
-# 분석할 파일 선택 방식
-# "first": 폴더에서 앞 N개
-# "lowest": 기존 nisqa_mos_results_*.csv에서 MOS 낮은 N개
+# 파일 선택
+# "first": 폴더 앞 N개
+# "lowest": latest nisqa_mos_results_*.csv에서 MOS 낮은 N개
 # "highest": MOS 높은 N개
 SELECT_MODE = "first"
 N_FILES = 3
 
-# 클리핑 방지: peak가 -1 dBFS를 넘지 않도록 전체를 스케일 다운(선택)
+# 클리핑 방지(추천)
 AVOID_CLIP = True
-CLIP_TARGET_PEAK_DBFS = -1.0  # -1 dBFS
+CLIP_TARGET_PEAK_DBFS = -1.0
+
+# n_wins 초과 대응 상한(너무 큰 파일로 OOM 방지)
+MAX_SEGMENTS_HARD_CAP = 20000
+
 
 # =============================================================================
 # [B] 유틸
@@ -67,27 +67,23 @@ def to_mono(x: np.ndarray) -> np.ndarray:
 def rms_dbfs(x: np.ndarray, eps=1e-12) -> float:
     x = x.astype(np.float64)
     rms = np.sqrt(np.mean(x**2))
-    return 20*np.log10(max(rms, eps))
+    return 20 * np.log10(max(rms, eps))
 
 def peak_dbfs(x: np.ndarray, eps=1e-12) -> float:
     pk = float(np.max(np.abs(x)))
-    return 20*np.log10(max(pk, eps))
+    return 20 * np.log10(max(pk, eps))
 
 def apply_gain_db(x: np.ndarray, gain_db: float) -> np.ndarray:
     g = 10 ** (gain_db / 20.0)
     return (x.astype(np.float64) * g).astype(np.float32)
 
 def limit_peak_to_target(x: np.ndarray, target_peak_dbfs: float = -1.0) -> np.ndarray:
-    """
-    If signal peak is above target, scale down to target.
-    """
     pk = float(np.max(np.abs(x)))
     if pk <= 0:
         return x
     pk_db = 20*np.log10(pk)
     if pk_db <= target_peak_dbfs:
         return x
-    # scale so that new peak = target
     target_pk = 10 ** (target_peak_dbfs / 20.0)
     scale = target_pk / pk
     return (x.astype(np.float64) * scale).astype(np.float32)
@@ -104,12 +100,18 @@ def find_latest_mos_csv(results_dir: Path) -> Path:
         raise FileNotFoundError(f"nisqa_mos_results_*.csv not found in: {results_dir}")
     return cands[-1]
 
+def parse_nwins_error(msg: str) -> Optional[int]:
+    # example: n_wins 1609 > max_length 1300 --- ...
+    m = re.search(r"n_wins\s+(\d+)\s*>\s*max_length\s+(\d+)", msg)
+    if not m:
+        return None
+    return int(m.group(1))
+
 def select_files() -> List[Path]:
     wavs = scan_wavs(INPUT_WAV_DIR)
     if SELECT_MODE == "first":
         return wavs[:N_FILES]
 
-    # otherwise, use latest MOS csv
     mos_csv = find_latest_mos_csv(RESULTS_DIR)
     df = pd.read_csv(mos_csv)
     if "filename" not in df.columns or "mos_pred" not in df.columns:
@@ -127,16 +129,16 @@ def select_files() -> List[Path]:
 
     name_set = set(names)
     picked = [p for p in wavs if p.name in name_set]
-    if len(picked) != len(names):
-        missing = [n for n in names if n not in {p.name for p in picked}]
-        print("[WARN] Some files not found in INPUT_WAV_DIR:", missing)
+
+    missing = [n for n in names if n not in {p.name for p in picked}]
+    if missing:
+        print("[WARN] MOS CSV에는 있는데 INPUT_WAV_DIR에 없는 파일:", missing)
+
     return picked
 
 
 # =============================================================================
-# [C] NISQA predictor (in-memory dataset via temp folder write is avoided)
-#     -> But NISQA's SpeechQualityDataset expects files on disk.
-#     -> So we DO write temporary wavs into results/_gain_sweep_tmp (local, offline).
+# [C] NISQA predictor (predict_dir + auto retry on max_segments)
 # =============================================================================
 @dataclass
 class NISQAPredictor:
@@ -147,8 +149,9 @@ class NISQAPredictor:
         ensure_sys_path()
         from nisqa.NISQA_model import nisqaModel  # type: ignore
 
+        # init safely with predict_dir (no deg needed)
         args = {
-            "mode": "predict_dir",  # safe init
+            "mode": "predict_dir",
             "pretrained_model": str(self.model_path),
             "data_dir": str(INPUT_WAV_DIR),  # dummy for init
             "output_dir": "",
@@ -163,22 +166,70 @@ class NISQAPredictor:
         self._nisqa = nisqaModel(args)
         self.device = str(self._nisqa.dev)
 
-    def predict_dir(self, data_dir: Path) -> pd.DataFrame:
+    def predict_dir_with_retry(self, data_dir: Path) -> Dict[str, Any]:
         """
-        Reuse the existing nisqaModel object but swap args['data_dir'] and reload datasets.
-        This mirrors how NISQA uses internal args/datasets. It's not public API,
-        but works because _loadDatasetsFolder reads self.args['data_dir'].
+        Run prediction for a folder, but if NISQA throws:
+          ValueError: n_wins X > max_length Y
+        then increase ms_max_segments to X (cap applied) and retry.
         """
         self._nisqa.args["mode"] = "predict_dir"
         self._nisqa.args["data_dir"] = str(data_dir)
-        # reload datasets for new folder
-        self._nisqa._loadDatasets()  # internal method in NISQA_model.py
-        df = self._nisqa.predict()
-        return df
+
+        base_max = int(self._nisqa.args.get("ms_max_segments", 1300))
+        used_max = base_max
+        retries = 0
+        last_msg = ""
+
+        while True:
+            try:
+                # reload datasets with current args
+                self._nisqa._loadDatasets()
+                t0 = time.perf_counter()
+                df = self._nisqa.predict()
+                t1 = time.perf_counter()
+                return {
+                    "df": df,
+                    "batch_time_s": t1 - t0,
+                    "base_max_segments": base_max,
+                    "max_segments_used": used_max,
+                    "retries": retries,
+                    "retry_msg": last_msg,
+                }
+
+            except ValueError as e:
+                msg = str(e)
+                nwins = parse_nwins_error(msg)
+                if nwins is None:
+                    # 다른 ValueError면 그대로 올림 (진짜 문제)
+                    raise
+
+                retries += 1
+                last_msg = msg
+
+                # 늘릴 max_segments 결정(상한)
+                new_max = min(int(nwins), MAX_SEGMENTS_HARD_CAP)
+                if new_max <= used_max:
+                    # 이미 충분히 키웠는데 또 난다면 -> 무한루프 방지
+                    raise RuntimeError(
+                        f"Retry loop detected. used_max={used_max}, new_max={new_max}, msg={msg}"
+                    )
+
+                used_max = new_max
+                self._nisqa.args["ms_max_segments"] = used_max
+
+                # 상한에 걸렸는데도 계속 에러면 중단
+                if int(nwins) > MAX_SEGMENTS_HARD_CAP:
+                    raise RuntimeError(
+                        f"Required n_wins={nwins} exceeds hard cap={MAX_SEGMENTS_HARD_CAP}. "
+                        f"Consider increasing MAX_SEGMENTS_HARD_CAP. Last msg: {msg}"
+                    )
 
 
+# =============================================================================
+# [D] main
+# =============================================================================
 def main():
-    # checks
+    # sanity checks
     if not MODEL_PATH.exists():
         raise FileNotFoundError(f"MODEL_PATH not found: {MODEL_PATH}")
     if not INPUT_WAV_DIR.exists():
@@ -194,57 +245,63 @@ def main():
     predictor = NISQAPredictor(MODEL_PATH, device_forced=None)
     print("NISQA device:", predictor.device)
 
-    # temp folder for gain sweep wavs (offline local write)
+    # temp folder for gained wavs (offline local write)
     tmp_root = RESULTS_DIR / "_gain_sweep_tmp"
-    # clear old
-    if tmp_root.exists():
-        for f in tmp_root.glob("*.wav"):
-            try:
-                f.unlink()
-            except:
-                pass
     tmp_root.mkdir(parents=True, exist_ok=True)
+
+    # clear existing wavs
+    for f in tmp_root.glob("*.wav"):
+        try:
+            f.unlink()
+        except:
+            pass
 
     records: List[Dict[str, Any]] = []
     start_all = time.perf_counter()
 
-    # For each gain, create gained wavs in tmp_root, run predict_dir once
+    # We keep the (possibly increased) ms_max_segments inside predictor across gains
+    # because required number of windows depends on duration (gain doesn't change duration).
     for gdb in GAIN_DB_LIST:
-        # write gained copies
+        # 1) write gained copies into tmp_root (overwrite each gain)
         for src in picked:
             x, sr = sf.read(str(src), always_2d=False)
             x = to_mono(x).astype(np.float32)
             xg = apply_gain_db(x, gdb)
             if AVOID_CLIP:
                 xg = limit_peak_to_target(xg, CLIP_TARGET_PEAK_DBFS)
-            out_path = tmp_root / src.name
-            sf.write(str(out_path), xg, sr)
+            sf.write(str(tmp_root / src.name), xg, sr)
 
-        # run NISQA on tmp folder
-        t0 = time.perf_counter()
-        df_pred = predictor.predict_dir(tmp_root)
-        t1 = time.perf_counter()
+        # 2) NISQA predict with retry on ms_max_segments
+        out = predictor.predict_dir_with_retry(tmp_root)
+        df_pred: pd.DataFrame = out["df"]
 
-        # df_pred columns: deg, mos_pred, model (typically)
+        # expected columns: deg, mos_pred, model
         for _, r in df_pred.iterrows():
             fn = str(r["deg"])
             mos = float(r["mos_pred"])
-            # read again for RMS/peak after gain (cheap for N small)
+
+            # stats after gain (cheap: N small)
             x2, sr2 = sf.read(str(tmp_root / fn), always_2d=False)
             x2 = to_mono(x2)
+
             records.append({
                 "filename": fn,
                 "gain_db": float(gdb),
                 "mos_pred": mos,
                 "rms_dbfs": float(rms_dbfs(x2)),
                 "peak_dbfs": float(peak_dbfs(x2)),
-                "infer_time_s_for_gainbatch": float(t1 - t0),
+                "infer_time_s_for_gainbatch": float(out["batch_time_s"]),
                 "device": predictor.device,
                 "model": str(r.get("model", "NISQAv2_mos_only")),
+                "base_max_segments": int(out["base_max_segments"]),
+                "max_segments_used": int(out["max_segments_used"]),
+                "retries": int(out["retries"]),
+                "retry_msg": out["retry_msg"] if out["retries"] > 0 else "",
                 "clip_avoid": bool(AVOID_CLIP),
             })
 
-        print(f"[GAIN {gdb:+} dB] done. batch_time={t1-t0:.3f}s")
+        flag = "RETRY" if out["retries"] > 0 else "OK"
+        print(f"[GAIN {gdb:+} dB] {flag}  batch_time={out['batch_time_s']:.3f}s  maxSeg={out['max_segments_used']}")
 
     end_all = time.perf_counter()
     df = pd.DataFrame(records).sort_values(["filename", "gain_db"]).reset_index(drop=True)
@@ -252,10 +309,11 @@ def main():
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_csv = RESULTS_DIR / f"gain_sweep_results_{ts}.csv"
     df.to_csv(out_csv, index=False, encoding="utf-8-sig")
+
     print("\nSaved:", out_csv)
     print(f"Total runtime: {end_all-start_all:.2f}s")
 
-    # Plot: MOS vs gain for each file
+    # Plot 1: MOS vs gain
     plt.figure(figsize=(10, 5))
     for fn, g in df.groupby("filename"):
         plt.plot(g["gain_db"], g["mos_pred"], marker="o", label=fn)
@@ -265,7 +323,7 @@ def main():
     plt.grid(True)
     plt.legend(fontsize=8)
 
-    # Plot: RMS vs gain (sanity)
+    # Plot 2: RMS vs gain (sanity)
     plt.figure(figsize=(10, 5))
     for fn, g in df.groupby("filename"):
         plt.plot(g["gain_db"], g["rms_dbfs"], marker="o", label=fn)
