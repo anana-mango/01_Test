@@ -333,6 +333,48 @@ def main():
     plt.grid(True)
     plt.legend(fontsize=8)
 
+    # -------------------------------------------------------------------------
+    # Plot 3: MOS vs RMS (파일별 색상 + 전체 Pearson r + 회귀선)
+    # -------------------------------------------------------------------------
+    df_corr = df[["filename", "rms_dbfs", "mos_pred"]].copy()
+    df_corr = df_corr.replace([np.inf, -np.inf], np.nan).dropna(subset=["rms_dbfs", "mos_pred"])
+
+    x_all = df_corr["rms_dbfs"].to_numpy(dtype=float)
+    y_all = df_corr["mos_pred"].to_numpy(dtype=float)
+
+    # Pearson r(전체 포인트)
+    if len(x_all) >= 2 and np.std(x_all) > 1e-12:
+        r = float(np.corrcoef(x_all, y_all)[0, 1])
+    else:
+        r = float("nan")
+
+    plt.figure(figsize=(9, 6))
+
+    # 파일이 많으면 범례가 복잡해질 수 있음
+    MAX_LEGEND_ITEMS = None  # 예: 12로 바꾸면 처음 12개만 legend 표시
+
+    file_groups = list(df_corr.groupby("filename", sort=True))
+    for i, (fn, g) in enumerate(file_groups):
+        label = fn
+        if MAX_LEGEND_ITEMS is not None and i >= MAX_LEGEND_ITEMS:
+            label = None
+        plt.scatter(g["rms_dbfs"], g["mos_pred"], label=label)
+
+    plt.xlabel("RMS (dBFS)")
+    plt.ylabel("NISQA MOS (pred)")
+    plt.title(f"MOS vs RMS (colored by file) | Pearson r(all points) = {r:.3f}")
+    plt.grid(True)
+
+    # 전체 회귀선(선택)
+    if len(x_all) >= 2 and np.std(x_all) > 1e-12:
+        m, b = np.polyfit(x_all, y_all, 1)
+        xs = np.linspace(np.min(x_all), np.max(x_all), 200)
+        ys = m * xs + b
+        plt.plot(xs, ys)
+
+    if MAX_LEGEND_ITEMS is None or MAX_LEGEND_ITEMS > 0:
+        plt.legend(fontsize=8, loc="best")
+
     plt.show()
 
 
