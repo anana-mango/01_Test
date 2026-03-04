@@ -1,16 +1,31 @@
-이미지를 생성해주는데, 웹에 올라와 있는 뉴럴 네트워크 모델에 대해 설명하는 이미지가 필요해. 해당 모델의 구조와 내가 구현하고자 하는 방향은 지금부터 글로 설명할게. 
+"Generate a technical architecture diagram of the NISQA speech quality assessment model in academic paper style. Include these elements:  
 
-NISQA(2021 Interspeech 논문 기준)는 모델을 크게 이렇게 나눠 설명해. 
-1. Mel-spectrogram segmentation
-입력 음성을 Mel-spectrogram으로 변환한 뒤, overlap된 segment로 쪼갬. 
+1. **Input Layer**:   
+   - Raw audio waveform with sample rate label (e.g., 16kHz)  
+   - Spectrogram conversion block (FFT-based)  
 
-2. Framewise model = CNN
-각 segment를 입력으로 받아 CNN으로 로컬(시간-주파수) 특징을 추출해서 segment embedding(특징 벡터)을 만듦.
+2. **Feature Extraction Path**:  
+   - 2D Convolutional Neural Network (CNN) block with 3 layers  
+   - Batch normalization and ReLU activation indicators  
+   - Channel reduction arrow (e.g., 128 → 64 channels)  
 
-3. Time-dependency model = Self-Attention
-segment embedding들의 시계열 의존성을 Self-Attention으로 모델링. (이게 긴 문맥을 잡는 핵심) 
+3. **Temporal Modeling Path**:  
+   - Transformer Encoder block with multi-head attention  
+   - Positional encoding input  
+   - Layer normalization indicators  
 
-4. Pooling model = Attention-Pooling
-시간축 정보를 attention 기반 pooling으로 하나의 대표 표현으로 모아서 최종 점수들을 출력. 
+4. **Fusion Mechanism**:  
+   - Cross-attention between CNN features and Transformer outputs  
+   - Feature concatenation point  
 
-5. 그리고 출력은 overall MOS뿐 아니라 원인 해석용으로 Noisiness/Coloration/Discontinuity/Loudness 같은 다차원도 같이 예측하도록 설계돼 있어.  
+5. **Output Layer**:  
+   - Fully connected layer with sigmoid activation  
+   - MOS score output (0-5 scale) with regression calibration  
+
+6. **Visual Requirements**:  
+   - Clean lines with academic sans-serif font  
+   - Color-coded components (blue for input, green for CNN, orange for Transformer)  
+   - Arrows showing data flow direction  
+   - Block labels with technical terms in English  
+   - Grid background for alignment  
+   - Size: A4 paper width, height proportional to content"  
