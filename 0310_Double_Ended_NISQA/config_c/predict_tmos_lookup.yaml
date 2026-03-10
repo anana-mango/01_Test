@@ -1,0 +1,43 @@
+# config/predict_tmos_lookup.yaml
+
+name: TMOS_DE_PRED
+seed: 42
+output_dir: ./outputs/tmos_predict
+
+# checkpoint trained for TMOS
+pretrained_model: ./outputs/tmos_train/TMOS_DE_ACQUA_checkpoint.tar
+
+# input mode: single | dir | csv
+input_mode: csv
+
+# when input_mode=single
+# deg: ./data/infer_deg/example.wav
+# test_id: T021
+# scenario_id: S03
+
+# when input_mode=dir
+# deg_dir: ./data/infer_deg/
+
+# when input_mode=csv
+infer_csv: ./data/metadata_infer.csv
+
+csv_deg: filepath_deg
+csv_ref: filepath_ref
+
+bs: 8
+num_workers: 0
+tr_parallel: false
+
+lookup:
+  mapping_csv: ./data/reference_map.csv
+  strict: false
+  key_columns: [test_id, scenario_id]
+  regex_pattern: '(?P<test_id>T\d+)_(?P<scenario_id>S\d+)'
+  priority_column: priority
+  active_column: is_active
+  version_column: version
+  # fixed_ref_path: ./data/refs/global_ref.wav
+
+append_alignment_diag: true
+alignment_sr: 16000
+alignment_max_seconds: 3.0
