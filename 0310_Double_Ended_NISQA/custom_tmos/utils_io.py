@@ -14,6 +14,10 @@ import yaml
 
 import yaml
 from yaml.loader import SafeLoader
+from scipy.signal import resample_poly
+
+
+LOGGER = logging.getLogger(__name__)
 
 class TupleSafeLoader(SafeLoader):
     pass
@@ -36,12 +40,6 @@ def read_yaml(path):
     return data
 
 
-from scipy.signal import resample_poly
-
-
-LOGGER = logging.getLogger(__name__)
-
-
 def setup_logging(log_file: Optional[Path] = None, level: int = logging.INFO) -> None:
     handlers = [logging.StreamHandler()]
     if log_file is not None:
@@ -53,16 +51,6 @@ def setup_logging(log_file: Optional[Path] = None, level: int = logging.INFO) ->
         handlers=handlers,
         force=True,
     )
-
-
-def read_yaml(path: Path) -> Dict[str, Any]:
-    with path.open("r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    if data is None:
-        return {}
-    if not isinstance(data, dict):
-        raise ValueError(f"YAML must contain a dict at top-level: {path}")
-    return data
 
 
 def write_yaml(data: Dict[str, Any], path: Path) -> None:
