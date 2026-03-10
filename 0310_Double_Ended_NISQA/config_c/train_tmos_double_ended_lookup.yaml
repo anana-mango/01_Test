@@ -1,0 +1,30 @@
+nisqa_base_yaml: config/train_nisqa_double_ended.yaml
+
+name: TMOS_DE_SMOKETEST
+seed: 42
+
+output_dir: ./outputs/tmos_train_smoketest
+
+# 지금은 smoke test라 train/val 동일 CSV 사용
+train_csv: ./data/metadata_tmos_2ch_split.csv
+val_csv: ./data/metadata_tmos_2ch_split.csv
+
+csv_deg: filepath_deg
+csv_ref: filepath_ref
+tmos_column: tmos
+csv_mos_train: tmos
+csv_mos_val: tmos
+
+# 이미 filepath_ref가 CSV에 있으므로 lookup은 필요 없음
+model: NISQA_DE
+pretrained_model: ./weights/nisqa_mos_only.tar
+data_dir: .
+
+# 소규모 테스트용
+tr_bs: 2
+tr_bs_val: 2
+tr_num_workers: 0
+tr_parallel: false
+
+# 너무 오래 돌 필요 없음
+tr_epochs: 3
