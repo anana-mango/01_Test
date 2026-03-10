@@ -1,0 +1,41 @@
+# config/train_tmos_double_ended_lookup.yaml
+
+# official NISQA base config
+nisqa_base_yaml: config/train_nisqa_double_ended.yaml
+
+name: TMOS_DE_ACQUA
+seed: 42
+
+# project paths
+output_dir: ./outputs/tmos_train
+
+# training data
+train_csv: ./data/metadata_train.csv
+val_csv: ./data/metadata_val.csv
+
+# manifest columns
+csv_deg: filepath_deg
+csv_ref: filepath_ref
+tmos_column: tmos
+csv_mos_train: tmos
+csv_mos_val: tmos
+
+# lookup
+lookup:
+  mapping_csv: ./data/reference_map.csv
+  strict: true
+  key_columns: [test_id, scenario_id]
+  regex_pattern: '(?P<test_id>T\d+)_(?P<scenario_id>S\d+)'
+  priority_column: priority
+  active_column: is_active
+  version_column: version
+  # fixed_ref_path: ./data/refs/global_ref.wav   # optional fallback
+
+# typical NISQA overrides
+model: NISQA_DE
+pretrained_model: ./weights/nisqa_mos_only.tar
+data_dir: .
+tr_bs: 8
+tr_bs_val: 8
+tr_num_workers: 0
+tr_parallel: false
