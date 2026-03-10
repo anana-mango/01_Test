@@ -1,0 +1,31 @@
+NISQA_master/
+├─ config/
+│  ├─ train_nisqa_double_ended.yaml              # 공식 예시(기존)
+│  ├─ train_tmos_double_ended_lookup.yaml        # 새로 추가
+│  ├─ predict_tmos_lookup.yaml                   # 새로 추가
+│  └─ evaluate_tmos_lookup.yaml                  # 새로 추가
+│
+├─ custom_tmos/
+│  ├─ __init__.py
+│  ├─ utils_io.py
+│  ├─ utils_mapping.py
+│  ├─ lookup.py
+│  ├─ dataset_double_ended_lookup.py
+│  ├─ train_tmos_lookup.py
+│  ├─ predict_tmos_lookup.py
+│  └─ evaluate_tmos_lookup.py
+│
+├─ data/
+│  ├─ metadata_train.csv
+│  ├─ metadata_val.csv
+│  ├─ metadata_infer.csv
+│  ├─ reference_map.csv
+│  └─ refs/
+│     └─ ...
+│
+├─ nisqa/                                         # 기존
+├─ weights/                                       # 기존
+├─ run_train.py                                   # 기존
+├─ run_predict.py                                 # 기존
+├─ run_evaluate.py                                # 기존
+└─ ...
