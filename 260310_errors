@@ -1,129 +1,581 @@
-2026-03-10 18:37:58,789 | INFO | custom_tmos.dataset_double_ended_lookup | Training manifest saved to C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\outputs\tmos_train_smoketest\manifests\train_val_resolved.csv (10 rows)
-2026-03-10 18:37:58,789 | INFO | __main__ | Initializing NISQA double-ended TMOS training...
-2026-03-10 18:37:58,790 | INFO | __main__ | csv_file=outputs\tmos_train_smoketest\manifests\train_val_resolved.csv
-2026-03-10 18:37:58,791 | INFO | __main__ | csv_deg=filepath_deg
-2026-03-10 18:37:58,791 | INFO | __main__ | csv_ref=filepath_ref
-2026-03-10 18:37:58,791 | INFO | __main__ | csv_mos_train=tmos
-2026-03-10 18:37:58,791 | INFO | __main__ | csv_mos_val=tmos
-2026-03-10 18:37:58,792 | INFO | __main__ | csv_db_train=['train']
-2026-03-10 18:37:58,792 | INFO | __main__ | csv_db_val=['val']
-2026-03-10 18:37:58,792 | INFO | __main__ | pretrained_model=''
-Device: cuda
-Model architecture: NISQA_DE
-Training size: 5, Validation size: 5
-name: TMOS_DE_SMOKETEST
-data_dir: C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master
-output_dir: C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\outputs\tmos_train_smoketest
-pretrained_model: ''
-csv_file: outputs\tmos_train_smoketest\manifests\train_val_resolved.csv
-csv_con: null
-csv_deg: filepath_deg
-csv_ref: filepath_ref
-csv_mos_train: tmos
-csv_mos_val: tmos
-csv_db_train: [train]
-csv_db_val: [val]
-tr_epochs: 3
-tr_early_stop: 20
-tr_bs: 2
-tr_bs_val: 2
-tr_lr: 0.001
-tr_lr_patience: 15
-tr_num_workers: 0
-tr_parallel: false
-tr_ds_to_memory: false
-tr_ds_to_memory_workers: 0
-tr_device: null
-tr_checkpoint: every_epoch
-tr_verbose: 2
-tr_bias_mapping: null
-tr_bias_min_r: null
-tr_bias_anchor_db: null
-ms_sr: null
-ms_fmax: 20000
-ms_n_fft: 4096
-ms_hop_length: 0.01
-ms_win_length: 0.02
-ms_n_mels: 48
-ms_seg_length: 15
-ms_seg_hop_length: 4
-ms_max_segments: 1300
-ms_channel: null
-model: NISQA_DE
-cnn_model: adapt
-cnn_c_out_1: 16
-cnn_c_out_2: 32
-cnn_c_out_3: 64
-cnn_kernel_size: !!python/tuple [3, 3]
-cnn_dropout: 0.2
-cnn_fc_out_h: null
-cnn_pool_1: [24, 7]
-cnn_pool_2: [12, 5]
-cnn_pool_3: [6, 3]
-td: self_att
-td_sa_d_model: 64
-td_sa_nhead: 1
-td_sa_pos_enc: false
-td_sa_num_layers: 2
-td_sa_h: 64
-td_sa_dropout: 0.1
-td_lstm_h: null
-td_lstm_num_layers: null
-td_lstm_dropout: null
-td_lstm_bidirectional: null
-td_2: self_att
-td_2_sa_d_model: 64
-td_2_sa_nhead: 1
-td_2_sa_pos_enc: false
-td_2_sa_num_layers: 2
-td_2_sa_h: 64
-td_2_sa_dropout: 0.1
-td_2_lstm_h: null
-td_2_lstm_num_layers: null
-td_2_lstm_dropout: null
-td_2_lstm_bidirectional: null
-pool: att
-pool_att_h: 128
-pool_att_dropout: 0
-de_align: cosine
-de_align_apply: hard
-de_fuse: x/y/-
-de_fuse_dim: null
-nisqa_base_yaml: config/train_nisqa_double_ended.yaml
-seed: 42
-train_csv: ./data/metadata_tmos_2ch_split.csv
-val_csv: ./data/metadata_tmos_2ch_split.csv
-tmos_column: tmos
-mode: main
-dim: false
-double_ended: true
-now: 2026-03-10 18:37:58.979459
+current code of make_tmos_csv_from_txt_2ch.py
+from __future__ import annotations
 
-2026-03-10 18:37:58,986 | INFO | __main__ | Start training.
-runname: TMOS_DE_SMOKETEST_260310_183758979459
-C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\optim\lr_scheduler.py:28: UserWarning: The verbose parameter is deprecated. Please use get_last_lr() to access the learning rate.
-  warnings.warn("The verbose parameter is deprecated. Please use get_last_lr() "
---> start training
-————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— 100%, 3/3, 00:07<00:00, loss=3.12
+import argparse
+import re
+from pathlib import Path
+from typing import Dict, List, Tuple
 
-<---- Training ---->
-train:                         r_p_file: 0.58, rmse_map_file: 0.02
-<---- Validation ---->
-val:                           r_p_file: 0.54, rmse_map_file: 0.02
-ep 1 sec 9 es 0 lr 1e-03 loss 7.7568 // r_p_tr 0.58 rmse_map_tr 0.02 // r_p 0.54 rmse_map 0.02 // best_r_p 0.54 best_rmse_map 0.02,
-———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— 100%, 3/3, 00:01<00:00, loss=0.543
+import pandas as pd
+import soundfile as sf
 
-<---- Training ---->
-train:                         r_p_file: 0.01, rmse_map_file: 0.03
-<---- Validation ---->
-val:                           r_p_file: 0.49, rmse_map_file: 0.02
-ep 2 sec 3 es 1 lr 1e-03 loss 1.0382 // r_p_tr 0.01 rmse_map_tr 0.03 // r_p 0.49 rmse_map 0.02 // best_r_p 0.54 best_rmse_map 0.02,
-——————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— 100%, 3/3, 00:01<00:00, loss=0.0443
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-<---- Training ---->
-train:                         r_p_file: -0.44, rmse_map_file: 0.02
-<---- Validation ---->
-val:                           r_p_file: 0.52, rmse_map_file: 0.02
-ep 3 sec 3 es 2 lr 1e-03 loss 0.1649 // r_p_tr -0.44 rmse_map_tr 0.02 // r_p 0.52 rmse_map 0.02 // best_r_p 0.54 best_rmse_map 0.02,
---> Training done. best_r_p 0.54 best_rmse_map 0.02
-2026-03-10 18:38:17,442 | INFO | __main__ | Training completed.
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Split 2ch WAV files into degraded(L) and ref(R), "
+            "map TMOS from txt, and create NISQA-ready training CSV."
+        )
+    )
+
+    parser.add_argument(
+        "--wav_dir",
+        type=str,
+        default=str(PROJECT_ROOT / "data" / "wavs"),
+        help="Directory containing original 2ch WAV files",
+    )
+    parser.add_argument(
+        "--mapping_txt",
+        type=str,
+        default=str(PROJECT_ROOT / "data" / "wavs" / "wav_score_mapping.txt"),
+        help="Path to wav_score_mapping.txt",
+    )
+    parser.add_argument(
+        "--output_deg_dir",
+        type=str,
+        default=str(PROJECT_ROOT / "data" / "wavs_deg"),
+        help="Directory to save split degraded WAV files",
+    )
+    parser.add_argument(
+        "--output_ref_dir",
+        type=str,
+        default=str(PROJECT_ROOT / "data" / "wavs_ref"),
+        help="Directory to save split reference WAV files",
+    )
+    parser.add_argument(
+        "--output_csv",
+        type=str,
+        default=str(PROJECT_ROOT / "data" / "metadata_tmos_2ch_split.csv"),
+        help="Output CSV path",
+    )
+    parser.add_argument(
+        "--glob_pattern",
+        type=str,
+        default="*.wav",
+        help="Glob pattern for WAV files",
+    )
+    parser.add_argument(
+        "--db_label",
+        type=str,
+        default="train",
+        help="Value for db column in output CSV",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Raise error if any file fails parsing or mapping",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite split wav files if they already exist",
+    )
+    parser.add_argument(
+        "--save_float32",
+        action="store_true",
+        help="Save output wav as FLOAT subtype explicitly",
+    )
+
+    return parser.parse_args()
+
+
+def parse_mapping_txt(mapping_txt: Path) -> Dict[Tuple[str, int], float]:
+    """
+    Parse lines like:
+    0309_M1Q_data, Index 1        3.74
+    """
+    if not mapping_txt.exists():
+        raise FileNotFoundError(f"Mapping txt not found: {mapping_txt}")
+
+    mapping: Dict[Tuple[str, int], float] = {}
+
+    pattern = re.compile(
+        r"^\s*(?P<basename>[^,]+)\s*,\s*Index\s*(?P<index>\d+)\s+(?P<tmos>\d+(?:\.\d+)?)\s*$"
+    )
+
+    with mapping_txt.open("r", encoding="utf-8") as f:
+        for line_no, line in enumerate(f, start=1):
+            line = line.strip()
+            if not line:
+                continue
+
+            match = pattern.match(line)
+            if not match:
+                raise ValueError(
+                    f"Failed to parse line {line_no} in {mapping_txt}:\n{line}"
+                )
+
+            basename = match.group("basename").strip()
+            index = int(match.group("index"))
+            tmos = float(match.group("tmos"))
+
+            key = (basename, index)
+            if key in mapping:
+                raise ValueError(f"Duplicate mapping found for key={key}")
+            mapping[key] = tmos
+
+    return mapping
+
+
+def parse_wav_filename(wav_name: str) -> Tuple[str, int]:
+    """
+    Parse filename like:
+    0309_M1Q_data_SMD202_Index1_TimeSignal.wav
+
+    Returns:
+        basename = 0309_M1Q_data
+        index = 1
+    """
+    pattern = re.compile(
+        r"^(?P<basename>.+?)_SMD\d+_Index(?P<index>\d+)_TimeSignal\.wav$",
+        re.IGNORECASE,
+    )
+    match = pattern.match(wav_name)
+    if not match:
+        raise ValueError(f"Unexpected WAV filename format: {wav_name}")
+
+    basename = match.group("basename")
+    index = int(match.group("index"))
+    return basename, index
+
+
+def inspect_wav(wav_path: Path) -> sf.SoundFile:
+    return sf.SoundFile(str(wav_path))
+
+
+def split_stereo_wav(
+    input_wav: Path,
+    output_deg_wav: Path,
+    output_ref_wav: Path,
+    overwrite: bool = False,
+    save_float32: bool = False,
+) -> Tuple[int, int, int]:
+    """
+    Assumption:
+      Left channel  (ch=0) = degraded
+      Right channel (ch=1) = reference
+
+    Returns:
+      samplerate, frames, channels_original
+    """
+    if (output_deg_wav.exists() or output_ref_wav.exists()) and not overwrite:
+        info = sf.info(str(input_wav))
+        return info.samplerate, info.frames, info.channels
+
+    data, sr = sf.read(str(input_wav), always_2d=True)
+    # soundfile returns shape: (samples, channels) for multi-channel audio. 1
+
+    if data.ndim != 2 or data.shape[1] != 2:
+        raise ValueError(
+            f"Expected stereo 2ch wav, but got shape={data.shape} for file={input_wav}"
+        )
+
+    deg = data[:, 0]  # L = degraded
+    ref = data[:, 1]  # R = ref
+
+    output_deg_wav.parent.mkdir(parents=True, exist_ok=True)
+    output_ref_wav.parent.mkdir(parents=True, exist_ok=True)
+
+    if save_float32:
+        sf.write(str(output_deg_wav), deg.astype("float32"), sr, subtype="FLOAT")
+        sf.write(str(output_ref_wav), ref.astype("float32"), sr, subtype="FLOAT")
+    else:
+        sf.write(str(output_deg_wav), deg, sr)
+        sf.write(str(output_ref_wav), ref, sr)
+
+    info = sf.info(str(input_wav))
+    return info.samplerate, info.frames, info.channels
+
+
+def build_output_names(stem: str) -> Tuple[str, str]:
+    deg_name = f"{stem}_deg.wav"
+    ref_name = f"{stem}_ref.wav"
+    return deg_name, ref_name
+
+
+def build_records(
+    wav_dir: Path,
+    mapping: Dict[Tuple[str, int], float],
+    output_deg_dir: Path,
+    output_ref_dir: Path,
+    glob_pattern: str,
+    db_label: str,
+    strict: bool,
+    overwrite: bool,
+    save_float32: bool,
+) -> List[dict]:
+    wav_files = sorted(wav_dir.glob(glob_pattern))
+    if not wav_files:
+        raise FileNotFoundError(f"No wav files found in: {wav_dir}")
+
+    records: List[dict] = []
+    unmatched_files: List[str] = []
+
+    for wav_path in wav_files:
+        if not wav_path.is_file():
+            continue
+
+        try:
+            basename, index = parse_wav_filename(wav_path.name)
+        except ValueError:
+            if strict:
+                raise
+            unmatched_files.append(wav_path.name)
+            continue
+
+        key = (basename, index)
+        if key not in mapping:
+            if strict:
+                raise KeyError(f"No TMOS mapping found for wav: {wav_path.name}, key={key}")
+            unmatched_files.append(wav_path.name)
+            continue
+
+        try:
+            deg_name, ref_name = build_output_names(wav_path.stem)
+            output_deg_wav = output_deg_dir / deg_name
+            output_ref_wav = output_ref_dir / ref_name
+
+            samplerate, num_frames, channels_original = split_stereo_wav(
+                input_wav=wav_path,
+                output_deg_wav=output_deg_wav,
+                output_ref_wav=output_ref_wav,
+                overwrite=overwrite,
+                save_float32=save_float32,
+            )
+
+            records.append(
+                {
+                    "filepath_deg": str(output_deg_wav.as_posix()),
+                    "filepath_ref": str(output_ref_wav.as_posix()),
+                    "tmos": mapping[key],
+                    "db": db_label,
+                    "filename_2ch": wav_path.name,
+                    "stem_2ch": wav_path.stem,
+                    "basename": basename,
+                    "index": index,
+                    "samplerate": samplerate,
+                    "num_frames": num_frames,
+                    "channels_original": channels_original,
+                }
+            )
+
+        except Exception:
+            if strict:
+                raise
+            unmatched_files.append(wav_path.name)
+
+    if unmatched_files:
+        print("\n[WARNING] Files skipped or unmatched:")
+        for name in unmatched_files:
+            print(f"  - {name}")
+
+    return records
+
+
+def main() -> None:
+    args = parse_args()
+
+    wav_dir = Path(args.wav_dir)
+    mapping_txt = Path(args.mapping_txt)
+    output_deg_dir = Path(args.output_deg_dir)
+    output_ref_dir = Path(args.output_ref_dir)
+    output_csv = Path(args.output_csv)
+
+    if not wav_dir.exists():
+        raise FileNotFoundError(f"WAV directory not found: {wav_dir}")
+
+    mapping = parse_mapping_txt(mapping_txt)
+
+    records = build_records(
+        wav_dir=wav_dir,
+        mapping=mapping,
+        output_deg_dir=output_deg_dir,
+        output_ref_dir=output_ref_dir,
+        glob_pattern=args.glob_pattern,
+        db_label=args.db_label,
+        strict=args.strict,
+        overwrite=args.overwrite,
+        save_float32=args.save_float32,
+    )
+
+    if not records:
+        raise RuntimeError("No valid records were created.")
+
+    df = pd.DataFrame(records)
+    df = df.sort_values(["basename", "index"]).reset_index(drop=True)
+
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(output_csv, index=False, encoding="utf-8-sig")
+
+    print("\n[INFO] Split completed and CSV created successfully.")
+    print(f"[INFO] Output CSV: {output_csv}")
+    print(f"[INFO] Degraded WAV dir: {output_deg_dir}")
+    print(f"[INFO] Reference WAV dir: {output_ref_dir}")
+    print(f"[INFO] Number of rows: {len(df)}")
+    print("\n[INFO] Preview:")
+    print(df.to_string(index=False))
+
+
+if __name__ == "__main__":
+    main()
+
+Error
+
+Traceback (most recent call last):
+  File "c:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\custom_tmos\make_tmos_csv_from_txt_2ch.py", line 320, in <module>
+    main()
+  File "c:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\custom_tmos\make_tmos_csv_from_txt_2ch.py", line 287, in main
+    mapping = parse_mapping_txt(mapping_txt)
+  File "c:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\custom_tmos\make_tmos_csv_from_txt_2ch.py", line 114, in parse_mapping_txt
+    raise ValueError(f"Duplicate mapping found for key={key}")
+ValueError: Duplicate mapping found for key=('260209_Q8', 1)
+
+
+
+wav names and TMOS score mapping txt file content
+
+0309_M1Q_data, Index 1	3.74
+0309_M1Q_data, Index 2	3.80
+0309_M1Q_data, Index 3	3.79
+0309_M1Q_data, Index 4	3.77
+0309_M1Q_data, Index 5	3.75
+251204_A536, Index 1	3.51
+260202_A536, Index 1	3.63
+260209_Q8, Index 1	3.90
+260202_A536, Index 2	3.62
+260209_Q8, Index 2	3.95
+260209_Q8, Index 3	3.77
+260209_Q8, Index 1	3.35
+250114_Q7_TMOS, Index 1	3.50
+260209_Q8, Index 2	3.39
+250114_Q7_TMOS, Index 2	3.39
+260209_Q8, Index 3	3.29
+250114_Q7_TMOS, Index 3	3.57
+250114_Q7_TMOS, Index 4	3.48
+PS_B41_HS_AMR, Index 1	4.09
+XC7P_N41_HS_AMR, Index 1	3.90
+Q7_N41_HS_AMR, Index 1	4.20
+B7R_N41_AMR_WB_HS, Index 1	4.20
+B7_N41_AMR_WB_HS, Index 1	4.06
+PS_B41_HS_EVS_NB, Index 1	3.88
+XCOVER7P_N41_HS_EVS_WB, Index 1	3.93
+SM-S731U_N41_HS_EVS_WB, Index 1	3.98
+V2_0225_QC수정, Index 1	2.62
+V2_DV2_0204_COS, Index 1	3.02
+x2_ref_0130, Index 1	3.09
+v2_0224, Index 1	1.00
+0417 PA2, Index 1	3.50
+L335_PV2_VOLTE_YD8_solo, Index 1	3.70
+L705_COMP_0811, Index 1	3.05
+NTEST_06162, Index 1	3.46
+L335_COMP_0811, Index 1	2.97
+V2_DV2-1_#25_0130, Index 1	2.91
+1031 A56, Index 1	3.54
+250925_A253C, Index 1	3.49
+Jinju_250904, Index 1	2.77
+APLLEULTRA2_COMP_0811, Index 1	3.08
+Jinju_250903, Index 1	2.72
+250925_A253D, Index 1	3.74
+251016_Mate70RS, Index 1	3.59
+1031 A57, Index 1	3.48
+L335_0202, Index 1	3.23
+V2_0212_COS, Index 1	1.23
+l345_dv2_0209, Index 1	3.34
+L325 ref, Index 1	3.25
+251016_S25U, Index 1	3.51
+L345_0227_NBgain수정_#96, Index 1	3.39
+L345 DV2_0227_NBgain 변경 #97, Index 1	3.55
+L345_VA3_DV2, Index 1	3.13
+L345_0212, Index 1	3.39
+Jinju_250904, Index 2	2.68
+Jinju_250903, Index 2	3.19
+x2_ref_0130, Index 2	3.37
+L335_PV2_VOLTE_YD8_solo, Index 2	3.77
+x2_ref_0130, Index 3	2.70
+Jinju_250904, Index 3	2.83
+x2_ref_0130, Index 4	2.78
+Jinju_250904, Index 4	2.67
+Jinju_250904, Index 5	2.57
+NTEST_0616, Index 1	3.81
+250620_SKH_A536, Index 1	3.57
+250623_SKH_A536_SND_CAL, Index 1	3.65
+251204_A536, Index 1	3.60
+1031 A56, Index 1	3.98
+1031 A57, Index 1	3.63
+251021_A536, Index 1	3.58
+251016_S25U, Index 1	3.86
+251016_Mate70RS, Index 1	3.85
+250925_A253D, Index 1	3.91
+250925_A253C, Index 1	3.62
+250811_SKH_A536, Index 1	3.56
+Redmagic10Pro, Index 1	3.69
+260206_A536, Index 1	3.51
+NTEST_0616, Index 2	3.70
+NTEST_0616, Index 3	3.70
+0309_TMOS_data_M1_QC, Index 1	3.81
+0309_TMOS_data_M1_QC, Index 2	3.86
+0309_TMOS_data_M1_QC, Index 3	3.80
+0309_TMOS_data_M1_QC, Index 4	3.63
+0309_TMOS_data_M1_QC, Index 5	3.73
+0309_TMOS_data_M1_QC, Index 6	3.67
+0309_TMOS_data_M1_QC, Index 7	3.61
+0309_TMOS_data_M1_QC, Index 8	3.80
+0309_TMOS_data_M1_QC, Index 9	3.74
+0309_TMOS_data_M1_QC, Index 10	3.48
+1107_M1 EUR_New PV2, Index 1	3.94
+Honor_Air, Index 1	3.84
+M2_E_1111, Index 1	4.06
+A27_0306, Index 1	4.00
+1113_M3, Index 1	3.70
+A27_0304_PFT, Index 1	3.61
+1114_m1, Index 1	4.09
+1118_m1, Index 1	4.09
+A27_0226, Index 1	3.94
+New Measurement Object, Index 1	3.72
+A27_0225, Index 1	3.88
+1119_M3_lib, Index 1	3.70
+A26_0224, Index 1	3.85
+1120_M1_tune, Index 1	4.07
+1124_M1_PV3, Index 1	4.10
+A27_0220_DUMP, Index 1	3.61
+M2_EUR_1126_PV3, Index 1	4.12
+New Measurement Object_3, Index 1	3.68
+251203_OJT, Index 1	3.75
+A27_0211, Index 1	3.66
+251205_A536, Index 1	3.42
+1209_M1_CHN, Index 1	4.11
+M2_Orange_1210, Index 1	3.96
+New Measurement Object_1, Index 1	3.61
+250204_A536, Index 1	3.46
+New Measurement Object_5, Index 1	3.72
+S25_Edge, Index 1	3.67
+1107_M1 EUR_New PV2, Index 2	4.03
+M2_E_1111, Index 2	3.81
+A27_0306, Index 2	4.01
+1114_m1, Index 2	4.05
+1209_M1_CHN, Index 2	4.07
+
+
+
+
+in wavs folder, filelist
+
+0309_M1Q_data_SMD202_Index1_TimeSignal wav
+0309_M1Q_data_SMD202_Index2_TimeSignal wav
+0309_M1Q_data_SMD202_Index3_TimeSignal wav
+0309_M1Q_data_SMD202_Index4_TimeSignal wav
+0309_M1Q_data_SMD202_Index5_TimeSignal wav
+0309_TMOS_data_M1_QC_SMD1248_Index10_TimeSignal wav
+0309_TMOS_data_M1_QC_SMD1248_Index1_TimeSignal wav
+0309_TMOS_data_M1_QC_SMD1248_Index2_TimeSignal wav
+0309_TMOS_data_M1_QC_SMD1248_Index3_TimeSignal wav
+0309_TMOS_data_M1_QC_SMD1248_Index4_TimeSignal wav
+0309_TMOS_data_M1_QC_SMD1248_Index5_TimeSignal wav
+0309_TMOS_data_M1_QC_SMD1248_Index6_TimeSignal wav
+0309_TMOS_data_M1_QC_SMD1248_Index7_TimeSignal wav
+0309_TMOS_data_M1_QC_SMD1248_Index8_TimeSignal wav
+0309_TMOS_data_M1_QC_SMD1248_Index9_TimeSignal wav
+0417 PA2_SMD629_Index1_TimeSignal wav
+1031 A56_SMD1248_Index1_TimeSignal wav
+1031 A56_SMD629_Index1_TimeSignal wav
+1031 A57_SMD1248_Index1_TimeSignal wav
+1031 A57_SMD629_Index1_TimeSignal wav
+1107_M1 EUR_New PV2_SMD202_Index1_TimeSignal wav
+1107_M1 EUR_New PV2_SMD202_Index2_TimeSignal wav
+1113_M3_SMD202_Index1_TimeSignal wav
+1114_m1_SMD202_Index1_TimeSignal wav
+1114_m1_SMD202_Index2_TimeSignal wav
+1118_m1_SMD202_Index1_TimeSignal wav
+1119_M3_lib_SMD202_Index1_TimeSignal wav
+1120_M1_tune_SMD202_Index1_TimeSignal wav
+1124_M1_PV3_SMD202_Index1_TimeSignal wav
+1209_M1_CHN_SMD202_Index1_TimeSignal wav
+1209_M1_CHN_SMD202_Index2_TimeSignal wav
+250114_Q7_TMOS_SMD564_Index1_TimeSignal wav
+250114_Q7_TMOS_SMD564_Index2_TimeSignal wav
+250114_Q7_TMOS_SMD564_Index3_TimeSignal wav
+250114_Q7_TMOS_SMD564_Index4_TimeSignal wav
+250204_A536_SMD202_Index1_TimeSignal wav
+250620_SKH_A536_SMD1248_Index1_TimeSignal wav
+250623_SKH_A536_SND_CAL_SMD1248_Index1_TimeSignal wav
+250811_SKH_A536_SMD1248_Index1_TimeSignal wav
+250925_A253C_SMD1248_Index1_TimeSignal wav
+250925_A253C_SMD629_Index1_TimeSignal wav
+250925_A253D_SMD1248_Index1_TimeSignal wav
+250925_A253D_SMD629_Index1_TimeSignal wav
+251016_Mate70RS_SMD1248_Index1_TimeSignal wav
+251016_Mate70RS_SMD629_Index1_TimeSignal wav
+251016_S25U_SMD1248_Index1_TimeSignal wav
+251016_S25U_SMD629_Index1_TimeSignal wav
+251021_A536_SMD1248_Index1_TimeSignal wav
+251203_OJT_SMD202_Index1_TimeSignal wav
+251204_A536_SMD1055_Index1_TimeSignal wav
+251204_A536_SMD1248_Index1_TimeSignal wav
+251205_A536_SMD202_Index1_TimeSignal wav
+260202_A536_SMD1055_Index1_TimeSignal wav
+260202_A536_SMD1055_Index2_TimeSignal wav
+260206_A536_SMD1248_Index1_TimeSignal wav
+260209_Q8_SMD1055_Index1_TimeSignal wav
+260209_Q8_SMD1055_Index2_TimeSignal wav
+260209_Q8_SMD1055_Index3_TimeSignal wav
+260209_Q8_SMD564_Index1_TimeSignal wav
+260209_Q8_SMD564_Index2_TimeSignal wav
+260209_Q8_SMD564_Index3_TimeSignal wav
+A26_0224_SMD202_Index1_TimeSignal wav
+A27_0211_SMD202_Index1_TimeSignal wav
+A27_0220_DUMP_SMD202_Index1_TimeSignal wav
+A27_0225_SMD202_Index1_TimeSignal wav
+A27_0226_SMD202_Index1_TimeSignal wav
+A27_0304_PFT_SMD202_Index1_TimeSignal wav
+A27_0306_SMD202_Index1_TimeSignal wav
+A27_0306_SMD202_Index2_TimeSignal wav
+APLLEULTRA2_COMP_0811_SMD629_Index1_TimeSignal wav
+B7R_N41_AMR_WB_HS_SMD113_Index1_TimeSignal wav
+B7_N41_AMR_WB_HS_SMD113_Index1_TimeSignal wav
+Honor_Air_SMD202_Index1_TimeSignal wav
+Jinju_250903_SMD629_Index1_TimeSignal wav
+Jinju_250903_SMD629_Index2_TimeSignal wav
+Jinju_250904_SMD629_Index1_TimeSignal wav
+Jinju_250904_SMD629_Index2_TimeSignal wav
+Jinju_250904_SMD629_Index3_TimeSignal wav
+Jinju_250904_SMD629_Index4_TimeSignal wav
+Jinju_250904_SMD629_Index5_TimeSignal wav
+L325 ref_SMD629_Index1_TimeSignal wav
+L335_0202_SMD629_Index1_TimeSignal wav
+L335_COMP_0811_SMD629_Index1_TimeSignal wav
+L335_PV2_VOLTE_YD8_solo_SMD629_Index1_TimeSignal wav
+L335_PV2_VOLTE_YD8_solo_SMD629_Index2_TimeSignal wav
+L345_0212_SMD629_Index1_TimeSignal wav
+l345_dv2_0209_SMD629_Index1_TimeSignal wav
+L345_VA3_DV2_SMD629_Index1_TimeSignal wav
+L705_COMP_0811_SMD629_Index1_TimeSignal wav
+M2_EUR_1126_PV3_SMD202_Index1_TimeSignal wav
+M2_E_1111_SMD202_Index1_TimeSignal wav
+M2_E_1111_SMD202_Index2_TimeSignal wav
+M2_Orange_1210_SMD202_Index1_TimeSignal wav
+New Measurement Object_1_SMD202_Index1_TimeSignal wav
+New Measurement Object_3_SMD202_Index1_TimeSignal wav
+New Measurement Object_5_SMD202_Index1_TimeSignal wav
+New Measurement Object_SMD202_Index1_TimeSignal wav
+NTEST_06162_SMD629_Index1_TimeSignal wav
+NTEST_0616_SMD1248_Index1_TimeSignal wav
+NTEST_0616_SMD1248_Index2_TimeSignal wav
+NTEST_0616_SMD1248_Index3_TimeSignal wav
+PS_B41_HS_AMR_SMD113_Index1_TimeSignal wav
+PS_B41_HS_EVS_NB_SMD113_Index1_TimeSignal wav
+Q7_N41_HS_AMR_SMD113_Index1_TimeSignal wav
+Redmagic10Pro_SMD1248_Index1_TimeSignal wav
+S25_Edge_SMD202_Index1_TimeSignal wav
+SM-S731U_N41_HS_EVS_WB_SMD113_Index1_TimeSignal wav
+V2_0212_COS_SMD629_Index1_TimeSignal wav
+v2_0224_SMD629_Index1_TimeSignal wav
+V2_DV2-1_#25_0130_SMD629_Index1_TimeSignal wav
+V2_DV2_0204_COS_SMD629_Index1_TimeSignal wav
+wav_score_mapping txt
+x2_ref_0130_SMD629_Index1_TimeSignal wav
+x2_ref_0130_SMD629_Index2_TimeSignal wav
+x2_ref_0130_SMD629_Index3_TimeSignal wav
+x2_ref_0130_SMD629_Index4_TimeSignal wav
+XC7P_N41_HS_AMR_SMD113_Index1_TimeSignal wav
+XCOVER7P_N41_HS_EVS_WB_SMD113_Index1_TimeSignal wav
