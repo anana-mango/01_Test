@@ -1,0 +1,220 @@
+너는 신호처리, 음성품질평가, PyTorch, knowledge distillation, NISQA 구조 분석에 능숙한 최고 수준의 엔지니어다.
+
+내 로컬 환경에는 **NISQA 공식 GitHub 저장소의 main 폴더 전체가 이미 복사되어 있다**고 가정하라.  
+반드시 먼저 다음을 수행하라.
+
+1. 웹에서 **NISQA 공식 문서, README, GitHub main 구조, double-ended 논문, transfer learning 관련 설명, 오픈소스 구현 관행**을 충분히 검색하고 교차확인하라.
+2. 로컬 NISQA 폴더 구조를 분석한다고 가정하고, 기존 코드와 최대한 호환되는 구현 전략을 세워라.
+3. 내가 만들고 싶은 것은 **ACQUA TMOS 예측기**다.
+4. 최종 실사용은 degraded wav 하나만 넣는 방식이 좋다.
+5. 하지만 학습 단계에서는 reference wav도 사용할 수 있다.
+6. 따라서 **Double-Ended Teacher + Single-Ended Student distillation 방식**으로 구현하라.
+
+---
+
+# 핵심 목표
+
+## Teacher
+- 입력: `(ref, deg)`
+- 목표: ACQUA TMOS
+- 역할: full-reference 고성능 기준 모델
+
+## Student
+- 입력: `(deg)`
+- 목표:
+  - ACQUA TMOS
+  - teacher prediction distillation
+  - 필요하면 teacher intermediate feature distillation
+
+## 최종 배포 모델
+- 입력: degraded wav 하나
+- 출력: TMOS 예측값
+
+---
+
+# 구현 요구사항
+
+반드시 아래 순서로 작업하라.
+
+## 1. 조사 및 설계 요약
+먼저 아래를 한국어로 자세히 정리하라.
+
+- NISQA 공식 저장소에서 single-ended / double-ended 학습의 공통점과 차이
+- 어떤 기존 파일과 설정을 재사용할 수 있는지
+- teacher를 어떤 구조로 구현할지
+- student를 어떤 구조로 구현할지
+- distillation을 어떤 방식으로 걸지
+  - hard target only
+  - hard + soft target
+  - feature matching
+  - weighted loss
+- 왜 이 방식이 ACQUA TMOS 문제에 적합한지
+- pure single-ended, pure double-ended, teacher-student의 차이
+- 예상 폴더 구조와 파일 역할
+
+이 설명은 반드시 실무 설계 문서 수준으로 써라.
+
+---
+
+## 2. 폴더 구조 제안
+NISQA main 폴더 안에 추가할 폴더/파일 구조를 실제 구현 가능한 형태로 제안하라.
+
+예시:
+- `custom_tmos/`
+  - `teacher_dataset.py`
+  - `student_dataset.py`
+  - `teacher_model_adapter.py`
+  - `student_model_adapter.py`
+  - `distill_losses.py`
+  - `train_teacher.py`
+  - `train_student.py`
+  - `predict_student.py`
+  - `evaluate_teacher.py`
+  - `evaluate_student.py`
+  - `utils_features.py`
+  - `utils_io.py`
+- `config/`
+  - `train_teacher_tmos.yaml`
+  - `train_student_tmos_distill.yaml`
+  - `predict_student_tmos.yaml`
+
+반드시 각 파일 역할을 설명하라.
+
+---
+
+## 3. 데이터 포맷 설계
+내가 바로 CSV를 만들 수 있도록 다음 데이터 포맷을 설계하라.
+
+### A. teacher 학습용
+- `filepath_ref`
+- `filepath_deg`
+- `tmos`
+- `db`
+- optional metadata
+
+### B. student 학습용
+- teacher 학습용과 동일 CSV를 쓸 수 있는지 검토
+- 필요하면 teacher 예측값 캐시 파일 설계
+  - `teacher_pred`
+  - `teacher_feature_path`
+  - `teacher_confidence`
+
+### C. 추론용
+- `filepath_deg`
+
+각 컬럼 의미와 예시를 텍스트로 자세히 설명하라.
+
+---
+
+## 4. 모델 설계
+다음을 구현하라.
+
+### Teacher
+- NISQA의 double-ended 구조를 기반으로 구현
+- 가능하면 기존 double-ended 예시 설정과 구조를 재사용
+- target = ACQUA TMOS
+
+### Student
+다음 두 안을 비교하고 최종 추천안을 택하라.
+1. NISQA single-ended 구조 기반 student
+2. 더 가벼운 CNN/LSTM/SA student
+
+그리고 왜 그 구조를 택했는지 설명하라.
+
+### Distillation
+다음 조합을 고려해서 최종 loss를 설계하라.
+- supervised loss: `L_supervised(student_tmos, true_tmos)`
+- distill loss: `L_distill(student_tmos, teacher_tmos)`
+- optional feature loss: `L_feat(student_hidden, teacher_hidden_proj)`
+
+최종 loss 예시:
+`L = alpha * L_supervised + beta * L_distill + gamma * L_feat`
+
+단, 단순 개념 설명이 아니라 실제 구현 가능한 형태로 설계하고 코드로 작성하라.
+
+---
+
+## 5. 전체 코드 작성
+이제 실제 동작 가능한 Python 코드를 모두 작성하라.
+
+### 필수 조건
+- 여러 개의 `.py` 파일로 나눠라
+- 코드 생략 금지
+- 실제 실행 가능한 수준으로 작성
+- typing, 예외처리, 로깅 포함
+- config 기반 실행
+- 가능한 한 기존 NISQA 파이프라인을 재사용
+- teacher와 student를 명확히 분리
+- teacher checkpoint 로드 / teacher prediction cache 생성 지원
+- train / val / test 루프 포함
+- inference script 포함
+- 결과 CSV 저장 포함
+
+### 꼭 들어가야 할 기능
+1. teacher 학습
+2. teacher 평가
+3. teacher 예측 캐시 생성
+4. student distillation 학습
+5. student 평가
+6. student 단일 wav 추론
+7. student batch 추론
+8. metric 계산
+9. seed 고정
+10. checkpoint 관리
+11. early stopping 또는 best model 저장
+12. optional mixed precision
+
+---
+
+## 6. 실행 방법 설명
+코드 뒤에 반드시 아래를 설명하라.
+
+### Teacher 단계
+- teacher 학습 명령어
+- teacher 평가 명령어
+- teacher checkpoint 위치
+- teacher prediction cache 생성 방법
+
+### Student 단계
+- student 학습 명령어
+- distillation 관련 하이퍼파라미터 조정 방법
+- student checkpoint 위치
+- best model 선택 기준
+
+### 배포 / 추론 단계
+- wav 하나 입력
+- 폴더 단위 입력
+- 결과 CSV 위치
+- 로그 위치
+
+---
+
+## 7. 실무 관점 분석
+마지막에 아래를 한국어로 분석하라.
+
+- 이 방식이 왜 pure single-ended보다 유리할 수 있는지
+- 왜 pure double-ended보다 운영이 편한지
+- teacher bias가 student에 전파될 위험
+- ACQUA TMOS calibration 방법
+- 데이터가 적을 때의 전략
+- distillation loss 가중치 튜닝 전략
+- 향후 library lookup 방식과 결합 가능한지
+
+---
+
+# 중요한 추가 지시
+
+- 먼저 충분히 조사하고 설계한 뒤 코드를 써라.
+- 내가 따로 물어보지 않아도 필요한 합리적 가정은 명시하고 진행하라.
+- 코드가 길어도 괜찮다. 여러 파일로 나눠서 끝까지 작성하라.
+- “개념 설명만” 하지 말고 실제 프로젝트 투입 가능한 수준으로 작성하라.
+- 설명은 한국어로 하고, 코드와 변수명은 Python 실무 스타일로 작성하라.
+- 최종 출력 순서는 아래로 고정하라.
+
+1. 조사 및 설계 요약  
+2. 폴더 구조  
+3. 데이터 포맷  
+4. 모델 및 loss 설계  
+5. 전체 코드  
+6. 실행 방법  
+7. 한계 및 개선 포인트
