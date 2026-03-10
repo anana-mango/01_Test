@@ -46,11 +46,19 @@ def patch_args_for_double_ended_tmos(args: Dict[str, Any], output_dir: Path, man
     args["csv_ref"] = args.get("csv_ref", "filepath_ref")
     args["csv_mos_train"] = args.get("csv_mos_train", "tmos")
     args["csv_mos_val"] = args.get("csv_mos_val", "tmos")
+
+    # 여기 중요
     args["csv_db_train"] = args.get("csv_db_train", ["train"])
     args["csv_db_val"] = args.get("csv_db_val", ["val"])
+
     args["mode"] = "main"
     args["dim"] = False
     args["double_ended"] = True
+
+    # 새 모델 학습이면 pretrained 제거
+    if not args.get("pretrained_model"):
+        args.pop("pretrained_model", None)
+
     return args
 
 
