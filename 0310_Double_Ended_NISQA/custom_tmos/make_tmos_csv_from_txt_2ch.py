@@ -3,12 +3,27 @@ from __future__ import annotations
 import argparse
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 import pandas as pd
 import soundfile as sf
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+# WAV filename example:
+# 260209_Q8_SMD1055_Index1_TimeSignal.wav
+WAV_PATTERN = re.compile(
+    r"^(?P<basename>.+?)_SMD(?P<smd>\d+)_Index(?P<index>\d+)_TimeSignal\.wav$",
+    re.IGNORECASE,
+)
+
+# TXT line example:
+# 260209_Q8, Index 1        1055        3.90
+TXT_PATTERN = re.compile(
+    r"^\s*(?P<basename>.+?)\s*,\s*Index\s*(?P<index>\d+)\s+(?P<smd>\d+)\s+(?P<tmos>\d+(?:\.\d+)?)\s*$",
+    re.IGNORECASE,
+)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -79,68 +94,79 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def parse_mapping_txt(mapping_txt: Path) -> Dict[Tuple[str, int], float]:
+def parse_mapping_txt(mapping_txt: Path) -> Dict[Tuple[str, int, int], float]:
     """
     Parse lines like:
-    0309_M1Q_data, Index 1        3.74
+    260209_Q8, Index 1        1055        3.90
+
+    Returns:
+        mapping[(basename, smd, index)] = tmos
     """
     if not mapping_txt.exists():
         raise FileNotFoundError(f"Mapping txt not found: {mapping_txt}")
 
-    mapping: Dict[Tuple[str, int], float] = {}
-
-    pattern = re.compile(
-        r"^\s*(?P<basename>[^,]+)\s*,\s*Index\s*(?P<index>\d+)\s+(?P<tmos>\d+(?:\.\d+)?)\s*$"
-    )
+    mapping: Dict[Tuple[str, int, int], float] = {}
+    duplicate_same_value: List[Tuple[str, int, int, float]] = []
 
     with mapping_txt.open("r", encoding="utf-8") as f:
-        for line_no, line in enumerate(f, start=1):
-            line = line.strip()
+        for line_no, raw_line in enumerate(f, start=1):
+            line = raw_line.strip()
             if not line:
                 continue
 
-            match = pattern.match(line)
+            # header skip
+            lower = line.lower()
+            if "measurement object" in lower and "tmos" in lower:
+                continue
+
+            match = TXT_PATTERN.match(line)
             if not match:
                 raise ValueError(
-                    f"Failed to parse line {line_no} in {mapping_txt}:\n{line}"
+                    f"Failed to parse line {line_no} in {mapping_txt}:\n{raw_line.rstrip()}"
                 )
 
             basename = match.group("basename").strip()
             index = int(match.group("index"))
+            smd = int(match.group("smd"))
             tmos = float(match.group("tmos"))
 
-            key = (basename, index)
+            key = (basename, smd, index)
+
             if key in mapping:
-                raise ValueError(f"Duplicate mapping found for key={key}")
+                if mapping[key] == tmos:
+                    duplicate_same_value.append((basename, smd, index, tmos))
+                    continue
+                raise ValueError(
+                    f"Conflicting duplicate mapping found for key={key}: "
+                    f"existing={mapping[key]}, new={tmos}"
+                )
+
             mapping[key] = tmos
+
+    if duplicate_same_value:
+        print("\n[WARNING] Duplicate rows with identical TMOS were ignored:")
+        for basename, smd, index, tmos in duplicate_same_value:
+            print(f"  - ({basename}, SMD{smd}, Index {index}) -> {tmos}")
 
     return mapping
 
 
-def parse_wav_filename(wav_name: str) -> Tuple[str, int]:
+def parse_wav_filename(wav_name: str) -> Tuple[str, int, int]:
     """
     Parse filename like:
-    0309_M1Q_data_SMD202_Index1_TimeSignal.wav
+    260209_Q8_SMD1055_Index1_TimeSignal.wav
 
     Returns:
-        basename = 0309_M1Q_data
-        index = 1
+        basename, smd, index
     """
-    pattern = re.compile(
-        r"^(?P<basename>.+?)_SMD\d+_Index(?P<index>\d+)_TimeSignal\.wav$",
-        re.IGNORECASE,
-    )
-    match = pattern.match(wav_name)
+    match = WAV_PATTERN.match(wav_name)
     if not match:
         raise ValueError(f"Unexpected WAV filename format: {wav_name}")
 
-    basename = match.group("basename")
+    basename = match.group("basename").strip()
+    smd = int(match.group("smd"))
     index = int(match.group("index"))
-    return basename, index
-
-
-def inspect_wav(wav_path: Path) -> sf.SoundFile:
-    return sf.SoundFile(str(wav_path))
+    return basename, smd, index
 
 
 def split_stereo_wav(
@@ -158,12 +184,11 @@ def split_stereo_wav(
     Returns:
       samplerate, frames, channels_original
     """
-    if (output_deg_wav.exists() or output_ref_wav.exists()) and not overwrite:
+    if output_deg_wav.exists() and output_ref_wav.exists() and not overwrite:
         info = sf.info(str(input_wav))
         return info.samplerate, info.frames, info.channels
 
     data, sr = sf.read(str(input_wav), always_2d=True)
-    # soundfile returns shape: (samples, channels) for multi-channel audio. 1
 
     if data.ndim != 2 or data.shape[1] != 2:
         raise ValueError(
@@ -195,7 +220,7 @@ def build_output_names(stem: str) -> Tuple[str, str]:
 
 def build_records(
     wav_dir: Path,
-    mapping: Dict[Tuple[str, int], float],
+    mapping: Dict[Tuple[str, int, int], float],
     output_deg_dir: Path,
     output_ref_dir: Path,
     glob_pattern: str,
@@ -210,23 +235,27 @@ def build_records(
 
     records: List[dict] = []
     unmatched_files: List[str] = []
+    wav_keys_seen: Set[Tuple[str, int, int]] = set()
 
     for wav_path in wav_files:
         if not wav_path.is_file():
             continue
 
         try:
-            basename, index = parse_wav_filename(wav_path.name)
+            basename, smd, index = parse_wav_filename(wav_path.name)
+            key = (basename, smd, index)
+            wav_keys_seen.add(key)
         except ValueError:
             if strict:
                 raise
             unmatched_files.append(wav_path.name)
             continue
 
-        key = (basename, index)
         if key not in mapping:
+            msg = f"No TMOS mapping found for wav: {wav_path.name}, key={key}"
             if strict:
-                raise KeyError(f"No TMOS mapping found for wav: {wav_path.name}, key={key}")
+                raise KeyError(msg)
+            print(f"[WARNING] {msg}")
             unmatched_files.append(wav_path.name)
             continue
 
@@ -252,6 +281,7 @@ def build_records(
                     "filename_2ch": wav_path.name,
                     "stem_2ch": wav_path.stem,
                     "basename": basename,
+                    "smd": smd,
                     "index": index,
                     "samplerate": samplerate,
                     "num_frames": num_frames,
@@ -259,15 +289,22 @@ def build_records(
                 }
             )
 
-        except Exception:
+        except Exception as exc:
             if strict:
                 raise
+            print(f"[WARNING] Failed to split/process {wav_path.name}: {exc}")
             unmatched_files.append(wav_path.name)
 
     if unmatched_files:
         print("\n[WARNING] Files skipped or unmatched:")
         for name in unmatched_files:
             print(f"  - {name}")
+
+    unused_mapping_keys = sorted(set(mapping.keys()) - wav_keys_seen)
+    if unused_mapping_keys:
+        print("\n[INFO] Mapping rows with no matching WAV file:")
+        for basename, smd, index in unused_mapping_keys:
+            print(f"  - ({basename}, SMD{smd}, Index {index}) -> {mapping[(basename, smd, index)]}")
 
     return records
 
@@ -302,7 +339,7 @@ def main() -> None:
         raise RuntimeError("No valid records were created.")
 
     df = pd.DataFrame(records)
-    df = df.sort_values(["basename", "index"]).reset_index(drop=True)
+    df = df.sort_values(["basename", "smd", "index"]).reset_index(drop=True)
 
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_csv, index=False, encoding="utf-8-sig")
