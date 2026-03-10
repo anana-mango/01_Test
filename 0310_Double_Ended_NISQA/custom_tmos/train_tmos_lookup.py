@@ -48,8 +48,8 @@ def patch_args_for_double_ended_tmos(args: Dict[str, Any], output_dir: Path, man
     args["csv_mos_val"] = args.get("csv_mos_val", "tmos")
 
     # 여기 중요
-    args["csv_db_train"] = args.get("csv_db_train", ["train"])
-    args["csv_db_val"] = args.get("csv_db_val", ["val"])
+    args["csv_db_train"] = args["train"]
+    args["csv_db_val"] = args["val"]
 
     args["mode"] = "main"
     args["dim"] = False
