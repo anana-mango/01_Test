@@ -8,6 +8,7 @@ from typing import Dict, List, Tuple
 import pandas as pd
 import soundfile as sf
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -20,31 +21,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--wav_dir",
         type=str,
-        default="Project2/NISQA_master/data/wavs",
+        default=str(PROJECT_ROOT / "data" / "wavs"),
         help="Directory containing original 2ch WAV files",
     )
     parser.add_argument(
         "--mapping_txt",
         type=str,
-        default="Project2/NISQA_master/data/wavs/wav_score_mapping.txt",
+        default=str(PROJECT_ROOT / "data" / "wavs" / "wav_score_mapping.txt"),
         help="Path to wav_score_mapping.txt",
     )
     parser.add_argument(
         "--output_deg_dir",
         type=str,
-        default="Project2/NISQA_master/data/wavs_deg",
+        default=str(PROJECT_ROOT / "data" / "wavs_deg"),
         help="Directory to save split degraded WAV files",
     )
     parser.add_argument(
         "--output_ref_dir",
         type=str,
-        default="Project2/NISQA_master/data/wavs_ref",
+        default=str(PROJECT_ROOT / "data" / "wavs_ref"),
         help="Directory to save split reference WAV files",
     )
     parser.add_argument(
         "--output_csv",
         type=str,
-        default="Project2/NISQA_master/data/metadata_tmos_2ch_split.csv",
+        default=str(PROJECT_ROOT / "data" / "metadata_tmos_2ch_split.csv"),
         help="Output CSV path",
     )
     parser.add_argument(
