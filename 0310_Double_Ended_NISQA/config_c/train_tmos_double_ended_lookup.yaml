@@ -17,7 +17,7 @@ csv_mos_val: tmos
 
 # 이미 filepath_ref가 CSV에 있으므로 lookup은 필요 없음
 model: NISQA_DE
-pretrained_model: ./weights/nisqa_mos_only.tar
+pretrained_model: ""
 data_dir: .
 
 # 소규모 테스트용
