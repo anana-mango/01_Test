@@ -1,1 +1,478 @@
-hy?>
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
+using Microsoft.CSharp;
+using System.ServiceProcess;
+using Acqua3;
+using HEADACQUAlyzer;
+using MfeControlLib;
+using System.Collections;
+using System.Windows.Forms;
+
+namespace AcquaControlManager
+{
+    public enum ELogType { Debug, Info, Warn, Error, Fatal }
+
+    public static class AcquaApi
+    {
+        public delegate void DelAcquaApiLogger(ELogType eLogType, string strMessage);
+        public static event DelAcquaApiLogger GetLog;
+
+        public enum EBtHfpBrsf
+        {
+            NrEc = 0, CallWatingAnd3WayCalling = 1,
+            CLIPresentationCapability = 2, VoiceRecognitionActivation = 3,
+            RemoteVolumeControl = 4, EnhancedCallStatus = 5,
+            EnhancedCallControl = 6, WidebandCodecNegotiation = 7
+        }
+
+        public static Acqua3.AcquaApplication AcquaApp;
+        public static HEADACQUAlyzer.MeasurementEngine AcquaMeasurementEngine;
+        public static HEADACQUAlyzer.IFrontends AcquaFrontends;
+        public static HEADACQUAlyzer.ISettings AcquaVoipSettings;
+
+        public static HEADACQUAlyzer.Variables AcquaVariables;
+
+        //public Acqua3.IMObject AcquaReportObject;
+        public static MfeControlLib.MfeControl AcquaMfeControl;
+        public static MfeControlLib.IMfe11 AcquaMfe11;
+        public static MfeControlLib.IMfe11BTInterface AcquaMfe11BtInterface;
+
+        public static MfeControlLib.LabCoreControl AcquaLabCoreControl;
+        public static MfeControlLib.IBlocks AcquaLabCoreBlock;
+        public static MfeControlLib.ILabCoreAudioBlockBluetooth AcquaLabCoreBt;
+        public static MfeControlLib.ILabCoreAudioBlockSettingsVoIP AcquaLabCoreVoip;
+        //public MfeControlLib.ILabCoreAudioBlock AcquaLabCoreAudioBlock;
+        //public MfeControlLib.ILabCoreAudioWiring AcquaLabCoreAudioWiring;
+
+        public static Acqua3.IProjectSelected AcquaIProjectSelected;
+
+        public static EMEResult EMEResult;
+
+        public static BitArray BtHfpBrsf;
+
+        public static bool AcquaSingleMeasurementStarted = false;
+        public static bool AcquaSingleMeasurementFinished = false;
+        public static bool IsLabCoreAvailable = false;
+
+        private static Acqua3.IProjectgroup _AcquaIProjectgroup;
+        private static Acqua3.IProject _AcquaIProject;
+        private static Acqua3.IMObject _AcquaIMObject;
+
+        private static readonly string _SystemVarsPath = @"C:\ProgramData\HEAD acoustics\ACQUA\SystemVars.ini";
+
+        private static readonly int[] _DecBtHfpBrsf = { 1, 2, 4, 8, 16, 32, 64, 128 };
+        private static string _AcquaCurrentMObjectTitle = "";
+        private static int _AcquaCurrentMObjectIndex = 0;
+
+
+        #region Encapshulation
+
+        public static string CurrentProjectGroupTitle { get; set; } = "";
+        public static string CurrentProjectTitle { get; set; } = "";
+        public static int CurrentProjectGroupIndex { get; private set; } = 0;
+        public static int CurrentProjectIndex { get; private set; } = 0;
+
+        public static IProjectgroup CurrentAcquaProjectGroup
+        {
+            get { return _AcquaIProjectgroup; }
+            set
+            {
+                CurrentProjectGroupIndex = 0;
+
+                if (value != null)
+                {
+                    foreach (Acqua3.IProjectgroup projectGroup in AcquaApp.ProjectGroups)
+                    {
+                        if (value.Title == projectGroup.Title) break;
+                        CurrentProjectGroupIndex++;
+                    }
+
+                    CurrentProjectGroupTitle = value.Title;
+                }
+                _AcquaIProjectgroup = value;
+            }
+        }
+
+        public static IProject CurrentAcquaProject
+        {
+            get { return _AcquaIProject; }
+            set
+            {
+                SmdTitleOverLap.Clear();
+                CurrentProjectIndex = 0;
+
+                if (value != null)
+                {
+                    _AcquaIProjectgroup = AcquaApp.ProjectGroups.Item[CurrentProjectGroupIndex];
+                    foreach (Acqua3.IProject project in CurrentAcquaProjectGroup.Projects)
+                    {
+                        if (value.Title == project.Title) break;
+                        CurrentProjectIndex++;
+                    }
+
+                    CurrentProjectTitle = value.Title;
+                }
+                _AcquaIProject = value;
+            }
+        }
+
+        public static IMObject AcquaMObject
+        {
+            get
+            {
+                while (AcquaApp.SelectedProjectLoaded == false)    //Project 동일 시 SelectedProjectLoaded가 계속 true
+                    Thread.Sleep(1000);
+                return _AcquaIMObject;
+            }
+            set
+            {
+                if (value != null)
+                {
+                    while (AcquaApp.SelectedProjectLoaded == false)    //Project 동일 시 SelectedProjectLoaded가 계속 true
+                        Thread.Sleep(1000);
+                    _AcquaIMObject = value;
+                    _AcquaCurrentMObjectTitle = AcquaApp.SelectedMeasurementObject.Title;
+                    _AcquaCurrentMObjectIndex = AcquaApp.SelectedMeasurementObject.RowID;
+                }
+            }
+        }
+
+        public static IBluetoothDeviceList AcquaBtDeviceList
+        {
+            get
+            {
+                if (AcquaBtInterface != null)
+                {
+                    return AcquaBtInterface.DeviceList;
+                }
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// FindSmdId 실행 시 FindNextSMD 를 위한 중복 값 임시 저장 List
+        /// </summary>
+        public static List<string> SmdTitleOverLap { get; set; } = new List<string>();
+
+        public static bool Mfe6Connected { get => AcquaMeasurementEngine.Mfe6.IsConnected; }
+        public static bool Mfe11Connected { get => AcquaMeasurementEngine.Mfe11.IsConnected; }
+        public static bool LabcoreConnected { get => IsLabCoreAvailable ? AcquaMeasurementEngine.Labcore.IsConnected : false; }
+
+
+        #endregion Encapshulation End
+
+
+        private static void WriteLog(ELogType eLogType, string strMessage)
+        {
+            GetLog?.Invoke(eLogType, strMessage);
+        }
+
+        public static void AcquaStart()
+        {
+            // ACQUA 실행
+            AcquaApp = new Acqua3.AcquaApplication();
+
+            // 아래 반복문 정상 작동 시 아래 주석 삭제
+            while (!AcquaApp.AppLoadFinished) ;
+
+
+            Thread.Sleep(5000);
+            AcquaMeasurementEngine = new HEADACQUAlyzer.MeasurementEngine();
+            AcquaFrontends = AcquaMeasurementEngine.Frontends;
+
+
+            #region Variables
+
+            AcquaVariables = new HEADACQUAlyzer.Variables();
+            string varFileName = _SystemVarsPath;
+            AcquaVariables.Filename = varFileName;
+
+            #endregion Variables
+
+
+            #region MFE Series
+
+            AcquaMfeControl = new MfeControlLib.MfeControl();
+            if (AcquaMfeControl != null)
+            {
+                WriteLog(ELogType.Info, string.Format("AcquaMfeControl.Count : {0}", AcquaMfeControl.Count));
+                WriteLog(ELogType.Info, string.Format("Mfe6Count : {0}", AcquaMfeControl.Mfe6Count));
+                WriteLog(ELogType.Info, string.Format("Mfe8Count : {0}", AcquaMfeControl.Mfe8Count));
+                WriteLog(ELogType.Info, string.Format("Mfe11Count : {0}", AcquaMfeControl.Mfe11Count));
+            }
+            else WriteLog(ELogType.Debug, "AcquaMfeControl.Count : null");
+
+            #endregion MFE Series
+
+
+            #region labCORE
+
+            AcquaLabCoreControl = new MfeControlLib.LabCoreControl();
+            if (AcquaLabCoreControl != null)
+            {
+                if (AcquaLabCoreControl.Count != 0)
+                {
+                    AcquaLabCoreBlock = AcquaLabCoreControl[0].AudioWiring.Blocks;
+
+                    MfeControlLib.IBlockBase acquaLabCoreBlockBase;
+
+                    acquaLabCoreBlockBase = AcquaLabCoreBlock.FirstBlockByType(EBlockType.eBlockTypeBluetooth);
+                    if (acquaLabCoreBlockBase != null)
+                    {
+                        AcquaLabCoreBt = acquaLabCoreBlockBase as ILabCoreAudioBlockBluetooth;
+                        WriteLog(ELogType.Info, "labCORE " + AcquaLabCoreBt.Name + " exist.");
+                    }
+                    else WriteLog(ELogType.Warn, "labCORE eBlockTypeBluetooth does not exist.");
+
+                    acquaLabCoreBlockBase = AcquaLabCoreBlock.FirstBlockByType(EBlockType.eBlockTypeVoIP);
+                    if (acquaLabCoreBlockBase != null)
+                    {
+                        AcquaLabCoreVoip = AcquaLabCoreBlock.FirstBlockByType(EBlockType.eBlockTypeVoIP).Settings;
+                        WriteLog(ELogType.Info, "labCORE ILabCoreAudioBlockSettingsVoIP exist.");
+                    }
+                    else WriteLog(ELogType.Warn, "labCORE eBlockTypeVoIP does not exist.");
+
+                    IsLabCoreAvailable = AcquaMeasurementEngine.Labcore.IsConnected;
+                }
+            }
+            else WriteLog(ELogType.Debug, "AcquaLabCoreControl.Count : null");
+
+            #endregion labCORE
+
+            BtHfpBrsf = new BitArray(Enum.GetNames(typeof(EBtHfpBrsf)).Length);
+            BtHfpBrsf.Set((int)EBtHfpBrsf.NrEc, false);
+            BtHfpBrsf.Set((int)EBtHfpBrsf.CallWatingAnd3WayCalling, false);
+            BtHfpBrsf.Set((int)EBtHfpBrsf.CLIPresentationCapability, false);
+            BtHfpBrsf.Set((int)EBtHfpBrsf.VoiceRecognitionActivation, true);
+            BtHfpBrsf.Set((int)EBtHfpBrsf.RemoteVolumeControl, true);
+            BtHfpBrsf.Set((int)EBtHfpBrsf.EnhancedCallStatus, true);
+            BtHfpBrsf.Set((int)EBtHfpBrsf.EnhancedCallControl, true);
+            BtHfpBrsf.Set((int)EBtHfpBrsf.WidebandCodecNegotiation, false);
+
+            AcquaApp.OnBeginSingleMeasurement -= AcquaApp_OnBeginSingleMeasurement;
+            AcquaApp.OnFinishedSingleMeasurement -= AcquaApp_OnFinishedSingleMeasurement;
+
+            AcquaApp.OnBeginSingleMeasurement += AcquaApp_OnBeginSingleMeasurement;
+            AcquaApp.OnFinishedSingleMeasurement += AcquaApp_OnFinishedSingleMeasurement;
+        }
+
+        public static bool AcquaConnectDatabase(string acquaServerName, string acquaDatabaseName, bool useWindowsAuthentication, string username = "", string password = "")
+        {
+
+            if (AcquaApp == null || !AcquaApp.AppLoadFinished)
+            {
+                WriteLog(ELogType.Warn, "ACQUA 가 아직 모두 켜지지 않았거나 서버 연결에 실패하였습니다.");
+                return false;
+            }
+            else
+            {
+                //  @"NO-SS125-PARK09\ACQUADBSERVER", "35_TS26131_32_Rev11", true, ""
+                if (AcquaApp.SelectDatabase(acquaServerName, acquaDatabaseName, useWindowsAuthentication, "", ""))
+                {
+                    WriteLog(ELogType.Info, "ACQUA 와 SQL 서버간 연결이 완료되었습니다.");
+                }
+                else
+                {
+                    WriteLog(ELogType.Warn, "ACQUA 가 아직 모두 켜지지 않았거나 서버 연결에 실패하였습니다.");
+                    return false;
+                }
+            }
+
+            CheckMfeConnect();
+            CheckLabCoreConnect();
+
+            return true;
+
+        }
+
+        public static void AcquaProcessKill()
+        {
+            if (AcquaApp == null)
+            {
+                WriteLog(ELogType.Warn, "AcquaApp is null.");
+            }
+
+            AcquaApp = null;
+
+            foreach (Process proc in Process.GetProcessesByName("Acqua3"))
+            {
+                proc.Kill();
+                proc.WaitForExit();
+            }
+            foreach (Process proc in Process.GetProcessesByName("Acqua4"))
+            {
+                proc.Kill();
+                proc.WaitForExit();
+            }
+            foreach (Process proc in Process.GetProcessesByName("Acqua5"))
+            {
+                proc.Kill();
+                proc.WaitForExit();
+            }
+            foreach (Process proc in Process.GetProcessesByName("Acqua6"))
+            {
+                proc.Kill();
+                proc.WaitForExit();
+            }
+            foreach (Process proc in Process.GetProcessesByName("ACQUAlyzer"))
+            {
+                proc.Kill();
+                proc.WaitForExit();
+            }
+            foreach (Process proc in Process.GetProcessesByName("HaspLicenseServer"))
+            {
+                proc.Kill();
+                proc.WaitForExit();
+            }
+        }
+
+
+        //----------------------------------------------------------------------------------------------------------------
+
+        #region Hardware Front-End
+
+        public static void HardwareConfigSet(string settingToUse)
+        {
+            if (settingToUse != "") AcquaMeasurementEngine.HardwareConfig.Settings.ActiveSetting = settingToUse;
+        }
+
+        /// <summary>
+        /// String "HS" or "BT"
+        /// </summary>
+        /// <param name="mode"></param>
+        /// <returns></returns>
+        public static bool CheckMfeConnect(string mode = "HS")
+        {
+            try
+            {
+                //_Mfe6Connected = AcquaMeasurementEngine.Mfe6.IsConnected;
+                //_Mfe11Connected = AcquaMeasurementEngine.Mfe11.IsConnected;
+
+                //if (!AcquaMeasurementEngine.Mfe6.IsConnected)
+                if (!Mfe6Connected)
+                {
+                    WriteLog(ELogType.Warn, "MFE6 is not connected!!");
+
+                    return false;
+                }
+                WriteLog(ELogType.Info, "MFE6 is connected");
+
+                if (mode == "BT" && !Mfe11Connected)
+                {
+                    WriteLog(ELogType.Warn, "MFE11 is not connected!!");
+
+                    return false;
+                }
+                if (Mfe11Connected) WriteLog(ELogType.Info, "MFE11 is connected");
+
+                if (mode == "BT" && Mfe11Connected && Mfe6Connected) return true;
+                else if (mode == "HS" && Mfe6Connected) return true;
+                else return false;
+
+            }
+            catch (Exception ex)
+            {
+                WriteLog(ELogType.Error, "CheckMfeConnect() Exception : " + ex);
+                return false;
+            }
+
+        }
+
+        public static bool MfeFrontendCheck(string mode = "HS")
+        {
+            try
+            {
+                CheckMfeConnect(mode);
+
+                //if (mode == "BT" && _Mfe11Connected && _Mfe6Connected) return true;
+                //if (mode == "HS" && _Mfe6Connected) return true;
+
+                string MFE6 = "";
+                bool MFE6_on = false;
+                string MFE11 = "";
+                bool MFE11_on = false;
+                string MFE81 = "";
+                bool MFE81_on = false;
+
+                for (int i = 0; i < AcquaFrontends.Count; i++)
+                {
+                    WriteLog(0, AcquaFrontends[i].Name);
+
+                    if (AcquaFrontends[i].Name.Contains("XI "))
+                    {
+                        MFE11 = AcquaFrontends[i].Name;
+                        MFE11_on = AcquaFrontends[i].Enabled;
+                        //Mfe11Connected = true;
+                    }
+                    else if (AcquaFrontends[i].Name.Contains("VI "))
+                    {
+                        MFE6 = AcquaFrontends[i].Name;
+                        MFE6_on = AcquaFrontends[i].Enabled;
+                        //Mfe6Connected = true;
+                    }
+                    else if (AcquaFrontends[i].Name.Contains("VIII"))
+                    {
+                        MFE81 = AcquaFrontends[i].Name;
+                        MFE81_on = AcquaFrontends[i].Enabled;
+                    }
+
+                } //여기서 MFE 이름과 Activate유무 파악.
+
+                if (mode == "HS" && MFE6_on == false)
+                    WriteLog(ELogType.Info, (AcquaFrontends.ActiveFrontend = MFE6) + " Activated");
+                if (mode == "BT" && MFE11_on == false)
+                    WriteLog(ELogType.Info, (AcquaFrontends.ActiveFrontend = MFE11) + " Activated");
+
+
+                Thread.Sleep(2500);
+
+                HardwareConfigSet(mode);
+
+                if (AcquaMeasurementEngine.HardwareConfig.Settings.ActiveSetting == null ||
+                    AcquaMeasurementEngine.HardwareConfig.Settings.ActiveSetting != mode)
+                {
+                    WriteLog(ELogType.Warn, "Setting 오류");
+                    return false;
+                }
+                else
+                    WriteLog(ELogType.Debug, "HardwareConfig : " + mode);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                WriteLog(ELogType.Error, "Hardware config ex Process has stopped!\n" + ex.Message);
+                //_FormMain.Knox_SendMSG("Hardware config ex! Process has stopped!\n" + ex.Message);
+            }
+
+            return true;
+        }
+
+        public static bool CheckLabCoreConnect(string SettingToUse = "")
+        {
+            try
+            {
+                if (!LabcoreConnected)
+                {
+                    WriteLog(ELogType.Warn, "labCORE is not connected!");
+                    return false;
+                }
+
+                if (SettingToUse != "") HardwareConfigSet(SettingToUse);
+
+                WriteLog(ELogType.Info, "labCORE is connected");
+                return true;
+            }
+            catch (Exception Error)
+            {
+                WriteLog(ELogType.Error, "labCORE Check Functinon ex. Process has stopped! : " + Error.Message);
+                //_FormMain.Knox_SendMSG("labCORE Check Functino ex. Process has stopped! : " + ex.Message);
+
+                return false;
+            }
+
+        }
+
+        #endregion Hardware Front-End
