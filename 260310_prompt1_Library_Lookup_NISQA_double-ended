@@ -1,0 +1,194 @@
+너는 신호처리, 음성품질평가, PyTorch, NISQA 구조 분석에 능숙한 최고 수준의 엔지니어다.
+
+내 로컬 환경에는 **NISQA 공식 GitHub 저장소의 main 폴더 전체가 이미 복사되어 있다**고 가정하라.  
+반드시 먼저 다음을 수행하라.
+
+1. 웹에서 **NISQA 관련 공식 자료와 오픈소스, 논문, README, 학습 설정 예시, full-reference(double-ended) 논문, 관련 위키 자료**를 폭넓게 검색하고 교차확인하라.
+2. 로컬 NISQA main 폴더 구조를 분석한다고 가정하고, 기존 코드와 최대한 호환되는 방식으로 구현 전략을 세워라.
+3. 내가 만들고 싶은 것은 **HEAD acoustics ACQUA의 TMOS 점수를 예측하는 모델**이다.
+4. 단, 실사용 편의성을 위해 **사용자는 degraded wav만 넣고**, 시스템 내부에서 자동으로 대응되는 reference wav를 찾아 **double-ended 방식으로 추론**하게 만들고 싶다.
+5. 즉 최종 목표는 **Library Lookup + Double-Ended TMOS Predictor** 이다.
+
+아래 제약과 요구사항을 반드시 지켜라.
+
+---
+
+# 핵심 목표
+
+- 입력:
+  - degraded wav 파일 1개 또는 degraded wav 목록
+- 내부 동작:
+  - 파일명 / CSV / test_id / scenario_id / 메타데이터 / 매핑 규칙을 이용해 대응 reference wav 자동 탐색
+  - 최종적으로 `(ref, deg)` pair 생성
+  - NISQA의 double-ended 구조를 활용하거나 이를 기반으로 커스텀 확장
+- 출력:
+  - ACQUA TMOS 예측값
+  - 가능하면 confidence 또는 lookup 로그
+  - 선택적으로 alignment 관련 진단 정보
+
+---
+
+# 구현 방향
+
+반드시 아래 순서로 작업하라.
+
+## 1. 조사 및 설계 요약
+먼저 아래를 한국어로 정리하라.
+
+- NISQA 공식 저장소에서 double-ended 학습/평가와 관련된 파일, 설정, 진입점이 무엇인지
+- 어떤 부분을 재사용하고 어떤 부분을 새로 만들어야 하는지
+- 내 목표가 일반 MOS가 아니라 **ACQUA TMOS** 이므로 어떤 점을 바꿔야 하는지
+- 왜 pure single-ended보다 이 방식이 적합한지
+- 어떤 reference lookup 전략을 지원할지
+  - exact CSV mapping
+  - filename rule-based mapping
+  - regex / key extraction
+  - fallback rule
+- 예상 폴더 구조와 파일 역할
+
+이 설계 요약은 짧게 하지 말고, 실무자가 바로 구현을 이해할 수 있을 정도로 자세히 써라.
+
+---
+
+## 2. 프로젝트 폴더 구조 제안
+NISQA main 폴더를 그대로 두되, 그 안에 추가할 폴더/파일 구조를 제안하라.
+
+예시 수준이 아니라 실제 구현 가능한 형태로 제안하라.  
+예를 들면 아래와 비슷하되, 더 최적화된 구조면 바꿔도 된다.
+
+- `custom_tmos/`
+  - `lookup.py`
+  - `dataset_double_ended_lookup.py`
+  - `train_tmos_lookup.py`
+  - `predict_tmos_lookup.py`
+  - `evaluate_tmos_lookup.py`
+  - `utils_io.py`
+  - `utils_mapping.py`
+- `config/`
+  - `train_tmos_double_ended_lookup.yaml`
+  - `predict_tmos_lookup.yaml`
+- `data/`
+  - `metadata_train.csv`
+  - `metadata_val.csv`
+  - `reference_map.csv`
+
+반드시 각 파일의 역할을 설명하라.
+
+---
+
+## 3. 데이터 포맷 설계
+내가 바로 CSV를 만들 수 있도록 **학습용 / 검증용 / 추론용 CSV 포맷**을 구체적으로 설계하라.
+
+다음 상황을 모두 지원하게 하라.
+
+### A. 학습용
+- `filepath_deg`
+- `filepath_ref`
+- `tmos`
+- `db`
+- optional metadata
+
+### B. 추론용 - 자동 lookup
+- `filepath_deg`
+- `test_id`
+- `scenario_id`
+- optional metadata
+
+### C. reference mapping 테이블
+- `test_id`
+- `scenario_id`
+- `filepath_ref`
+- optional priority / version
+
+각 컬럼 의미와 예시를 반드시 표 형태 대신 텍스트로 자세히 설명하라.
+
+---
+
+## 4. 구현 코드 작성
+이제 실제로 동작 가능한 Python 코드를 작성하라.
+
+### 필수 조건
+- 여러 개의 `.py` 파일로 나눠도 된다
+- 코드 전체를 모두 제공하라
+- 생략하지 마라
+- placeholder만 두지 말고, 실제 실행 가능한 수준으로 작성하라
+- typing, 예외처리, 로깅을 넣어라
+- 가능하면 기존 NISQA 코드 스타일과 최대한 호환되게 작성하라
+
+### 구현 필수 항목
+1. reference lookup 모듈
+2. rule-based / CSV-based 매핑 함수
+3. pair dataset loader
+4. training entry script
+5. inference entry script
+6. batch inference support
+7. evaluation script
+8. prediction 결과를 CSV로 저장
+9. 매칭 실패 시 에러/경고 처리
+10. 잘못된 sampling rate / stereo 처리 방안
+11. reproducibility seed 설정
+12. config 기반 실행 방식
+
+### 모델 관련 요구사항
+- 가능하면 **NISQA의 double-ended 학습 예시 설정과 기존 모델 구조를 최대한 재사용**하라
+- 단, target은 일반 MOS가 아니라 **TMOS**
+- 필요하면 loss / metric / dataset adapter를 수정하라
+- Pearson, RMSE, SRCC를 출력하라
+- optional로 first-order mapping 후 RMSE도 출력하라
+
+---
+
+## 5. 학습 코드 설명
+코드를 제시한 뒤, 아래를 반드시 설명하라.
+
+- 어떤 순서로 실행해야 하는지
+- 어떤 YAML 또는 Python 스크립트를 먼저 수정해야 하는지
+- 학습 데이터는 어디에 두어야 하는지
+- 예시 명령어
+- 체크포인트가 어디에 저장되는지
+- validation은 어떻게 돌아가는지
+- 기존 NISQA run_train.py를 그대로 쓰는지, wrapper를 쓰는지
+
+---
+
+## 6. 테스트 / 추론 코드 설명
+아래를 반드시 설명하라.
+
+- degraded wav 하나만 넣는 단일 추론 방법
+- degraded wav 폴더 전체를 넣는 batch 추론 방법
+- 내부에서 어떤 기준으로 ref를 찾는지
+- ref를 못 찾았을 때 어떻게 동작하는지
+- 출력 CSV 구조
+- 로그 파일 구조
+
+---
+
+## 7. 품질 및 실무 개선 포인트
+마지막에 아래 내용을 한국어로 분석하라.
+
+- 이 방식의 장점 / 한계
+- lookup mismatch가 예측에 주는 위험
+- 실험실 파이프라인에 넣을 때 주의할 점
+- 향후 teacher-student로 확장하는 방법
+- ACQUA TMOS와의 calibration 전략
+- 언제 pure double-ended보다 이 방식이 더 실무적일지
+
+---
+
+# 중요한 추가 지시
+
+- 먼저 충분히 조사하고 설계한 뒤 코드를 써라.
+- 내가 따로 물어보지 않아도, 필요한 합리적 가정은 명시하고 진행하라.
+- 코드가 길어도 괜찮다. 여러 파일로 나눠서 끝까지 작성하라.
+- “예시만 제시”하지 말고 실제 프로젝트에 넣을 수 있는 형태로 작성하라.
+- 설명은 한국어로 하되, 코드와 변수명은 Python 실무 스타일로 작성하라.
+- 반드시 **학습 코드와 추론 코드 둘 다** 제공하라.
+- 최종 출력은 아래 순서로 고정하라.
+
+1. 조사 및 설계 요약  
+2. 폴더 구조  
+3. 데이터 포맷  
+4. 전체 코드  
+5. 학습 방법  
+6. 추론 방법  
+7. 한계 및 개선 포인트
