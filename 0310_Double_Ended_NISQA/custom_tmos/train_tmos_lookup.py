@@ -1,4 +1,3 @@
-# custom_tmos/train_tmos_lookup.py
 from __future__ import annotations
 
 import argparse
@@ -38,26 +37,29 @@ def make_lookup_config(cfg: Dict[str, Any], root_dir: Path) -> LookupConfig | No
 
 def patch_args_for_double_ended_tmos(args: Dict[str, Any], output_dir: Path, manifest_name: str) -> Dict[str, Any]:
     args = dict(args)
+
+    # custom TMOS / new model training 기준으로 강제 설정
     args["name"] = args.get("name", "TMOS_DE")
     args["model"] = "NISQA_DE"
     args["output_dir"] = str(output_dir)
     args["csv_file"] = manifest_name
-    args["csv_deg"] = args.get("csv_deg", "filepath_deg")
-    args["csv_ref"] = args.get("csv_ref", "filepath_ref")
-    args["csv_mos_train"] = args.get("csv_mos_train", "tmos")
-    args["csv_mos_val"] = args.get("csv_mos_val", "tmos")
 
-    # 여기 중요
-    args["csv_db_train"] = args["train"]
-    args["csv_db_val"] = args["val"]
+    # custom manifest 컬럼명 강제
+    args["csv_deg"] = "filepath_deg"
+    args["csv_ref"] = "filepath_ref"
+    args["csv_mos_train"] = "tmos"
+    args["csv_mos_val"] = "tmos"
+
+    # custom manifest split 이름 강제
+    args["csv_db_train"] = ["train"]
+    args["csv_db_val"] = ["val"]
 
     args["mode"] = "main"
     args["dim"] = False
     args["double_ended"] = True
 
-    # 새 모델 학습이면 pretrained 제거
-    if not args.get("pretrained_model"):
-        args["pretrained_model"] = ""
+    # 완전 새 모델 학습
+    args["pretrained_model"] = ""
 
     return args
 
@@ -93,17 +95,21 @@ def main() -> None:
     val_csv = Path(merged_cfg["val_csv"]).resolve() if Path(merged_cfg["val_csv"]).is_absolute() else (root_dir / merged_cfg["val_csv"]).resolve()
 
     tmos_column = merged_cfg.get("tmos_column", "tmos")
-    deg_column = merged_cfg.get("csv_deg", "filepath_deg")
+    deg_column = "filepath_deg"
+    ref_column = "filepath_ref"
 
     build_training_manifest(
         train_csv=train_csv,
         val_csv=val_csv,
         output_csv=manifest_path,
         deg_column=deg_column,
+        ref_column=ref_column,
         tmos_column=tmos_column,
         root_dir=root_dir,
         lookup_cfg=lookup_cfg,
         validate_ref_exists=True,
+        train_db_label="train",
+        val_db_label="val",
     )
 
     nisqa_args = patch_args_for_double_ended_tmos(
@@ -114,12 +120,27 @@ def main() -> None:
     nisqa_args["data_dir"] = str(root_dir)
 
     LOGGER.info("Initializing NISQA double-ended TMOS training...")
+    LOGGER.info("csv_file=%s", nisqa_args["csv_file"])
+    LOGGER.info("csv_deg=%s", nisqa_args["csv_deg"])
+    LOGGER.info("csv_ref=%s", nisqa_args["csv_ref"])
+    LOGGER.info("csv_mos_train=%s", nisqa_args["csv_mos_train"])
+    LOGGER.info("csv_mos_val=%s", nisqa_args["csv_mos_val"])
+    LOGGER.info("csv_db_train=%s", nisqa_args["csv_db_train"])
+    LOGGER.info("csv_db_val=%s", nisqa_args["csv_db_val"])
+    LOGGER.info("pretrained_model='%s'", nisqa_args["pretrained_model"])
+
     model = nisqaModel(nisqa_args)
 
-    # Defensive patch in case checkpoint args overwrite csv_ref/double_ended.
-    model.args["csv_ref"] = nisqa_args["csv_ref"]
+    # 방어적으로 다시 고정
+    model.args["csv_ref"] = "filepath_ref"
+    model.args["csv_deg"] = "filepath_deg"
+    model.args["csv_mos_train"] = "tmos"
+    model.args["csv_mos_val"] = "tmos"
+    model.args["csv_db_train"] = ["train"]
+    model.args["csv_db_val"] = ["val"]
     model.args["double_ended"] = True
     model.args["model"] = "NISQA_DE"
+    model.args["pretrained_model"] = ""
 
     LOGGER.info("Start training.")
     model.train()
