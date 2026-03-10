@@ -1,5 +1,5 @@
-2026-03-10 17:29:50,348 | INFO | custom_tmos.dataset_double_ended_lookup | Training manifest saved to C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\outputs\tmos_train_smoketest\manifests\train_val_resolved.csv (10 rows)
-2026-03-10 17:29:50,349 | INFO | __main__ | Initializing NISQA double-ended TMOS training...
+2026-03-10 17:35:37,501 | INFO | custom_tmos.dataset_double_ended_lookup | Training manifest saved to C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\outputs\tmos_train_smoketest\manifests\train_val_resolved.csv (10 rows)
+2026-03-10 17:35:37,511 | INFO | __main__ | Initializing NISQA double-ended TMOS training...
 Device: cuda
 Model architecture: NISQA_DE
 Traceback (most recent call last):
@@ -11,11 +11,10 @@ Traceback (most recent call last):
     main()
   File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\custom_tmos\train_tmos_lookup.py", line 109, in main
     model = nisqaModel(nisqa_args)
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 34, in __init__
-    self._loadModel()
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 1023, in _loadModel
-    missing_keys, unexpected_keys = self.model.load_state_dict(checkpoint['model_state_dict'], strict=True)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 2153, in load_state_dict
-    raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
-RuntimeError: Error(s) in loading state_dict for NISQA_DE:
-        Missing key(s) in state_dict: "time_dependency_2.model.norm1.weight", "time_dependency_2.model.norm1.bias", "time_dependency_2.model.linear.weight", "time_dependency_2.model.linear.bias", "time_dependency_2.model.layers.0.self_attn.in_proj_weight", "time_dependency_2.model.layers.0.self_attn.in_proj_bias", "time_dependency_2.model.layers.0.self_attn.out_proj.weight", "time_dependency_2.model.layers.0.self_attn.out_proj.bias", "time_dependency_2.model.layers.0.linear1.weight", "time_dependency_2.model.layers.0.linear1.bias", "time_dependency_2.model.layers.0.linear2.weight", "time_dependency_2.model.layers.0.linear2.bias", "time_dependency_2.model.layers.0.norm1.weight", "time_dependency_2.model.layers.0.norm1.bias", "time_dependency_2.model.layers.0.norm2.weight", "time_dependency_2.model.layers.0.norm2.bias", "time_dependency_2.model.layers.1.self_attn.in_proj_weight", "time_dependency_2.model.layers.1.self_attn.in_proj_bias", "time_dependency_2.model.layers.1.self_attn.out_proj.weight", "time_dependency_2.model.layers.1.self_attn.out_proj.bias", "time_dependency_2.model.layers.1.linear1.weight", "time_dependency_2.model.layers.1.linear1.bias", "time_dependency_2.model.layers.1.linear2.weight", "time_dependency_2.model.layers.1.linear2.bias", "time_dependency_2.model.layers.1.norm1.weight", "time_dependency_2.model.layers.1.norm1.bias", "time_dependency_2.model.layers.1.norm2.weight", "time_dependency_2.model.layers.1.norm2.bias".
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 35, in __init__
+    self._loadDatasets()
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 740, in _loadDatasets
+    self._loadDatasetsCSV()
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 859, in _loadDatasetsCSV
+    raise ValueError('Not all dbs found in csv:', missing_datasets)
+ValueError: ('Not all dbs found in csv:', {'NISQA_TRAIN_SIM', 'NISQA_TRAIN_LIVE', 'NISQA_VAL_SIM', 'NISQA_VAL_LIVE'})
