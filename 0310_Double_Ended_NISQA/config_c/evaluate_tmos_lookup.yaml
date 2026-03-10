@@ -1,0 +1,26 @@
+# config/evaluate_tmos_lookup.yaml
+
+name: TMOS_DE_EVAL
+seed: 42
+output_dir: ./outputs/tmos_eval
+
+pretrained_model: ./outputs/tmos_train/TMOS_DE_ACQUA_checkpoint.tar
+
+eval_csv: ./data/metadata_val.csv
+tmos_column: tmos
+
+csv_deg: filepath_deg
+csv_ref: filepath_ref
+
+tr_parallel: false
+bs: 8
+num_workers: 0
+
+lookup:
+  mapping_csv: ./data/reference_map.csv
+  strict: true
+  key_columns: [test_id, scenario_id]
+  regex_pattern: '(?P<test_id>T\d+)_(?P<scenario_id>S\d+)'
+  priority_column: priority
+  active_column: is_active
+  version_column: version
