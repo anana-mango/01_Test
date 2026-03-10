@@ -1,4 +1,3 @@
-# custom_tmos/dataset_double_ended_lookup.py
 from __future__ import annotations
 
 import logging
@@ -20,11 +19,11 @@ def read_csv_resolve_paths(csv_path: Path) -> pd.DataFrame:
     return pd.read_csv(csv_path)
 
 
-def _resolve_deg_paths(df: pd.DataFrame, root_dir: Optional[Path], deg_column: str) -> pd.DataFrame:
-    if deg_column not in df.columns:
-        raise ValueError(f"Missing degraded path column: {deg_column}")
+def _resolve_column_paths(df: pd.DataFrame, root_dir: Optional[Path], column_name: str) -> pd.DataFrame:
+    if column_name not in df.columns:
+        raise ValueError(f"Missing path column: {column_name}")
     df = df.copy()
-    df[deg_column] = df[deg_column].apply(lambda x: str(resolve_path(str(x), root_dir)))
+    df[column_name] = df[column_name].apply(lambda x: str(resolve_path(str(x), root_dir)))
     return df
 
 
@@ -33,35 +32,54 @@ def build_training_manifest(
     val_csv: Path,
     output_csv: Path,
     deg_column: str = "filepath_deg",
+    ref_column: str = "filepath_ref",
     tmos_column: str = "tmos",
     root_dir: Optional[Path] = None,
     lookup_cfg: Optional[LookupConfig] = None,
     validate_ref_exists: bool = True,
+    train_db_label: str = "train",
+    val_db_label: str = "val",
 ) -> pd.DataFrame:
     df_train = read_csv_resolve_paths(train_csv)
     df_val = read_csv_resolve_paths(val_csv)
 
-    df_train = _resolve_deg_paths(df_train, root_dir, deg_column)
-    df_val = _resolve_deg_paths(df_val, root_dir, deg_column)
+    df_train = _resolve_column_paths(df_train, root_dir, deg_column)
+    df_val = _resolve_column_paths(df_val, root_dir, deg_column)
 
-    df_train["db"] = "train"
-    df_val["db"] = "val"
+    # 이미 ref가 있으면 ref 경로도 정규화
+    if ref_column in df_train.columns:
+        df_train = _resolve_column_paths(df_train, root_dir, ref_column)
+    if ref_column in df_val.columns:
+        df_val = _resolve_column_paths(df_val, root_dir, ref_column)
+
+    # smoke test / custom dataset 기준으로 split 이름 고정
+    df_train = df_train.copy()
+    df_val = df_val.copy()
+    df_train["db"] = train_db_label
+    df_val["db"] = val_db_label
 
     full = pd.concat([df_train, df_val], axis=0, ignore_index=True)
 
     if tmos_column not in full.columns:
         raise ValueError(f"Missing target column: {tmos_column}")
 
-    if "filepath_ref" not in full.columns or full["filepath_ref"].fillna("").eq("").any():
+    if ref_column not in full.columns or full[ref_column].fillna("").eq("").any():
         if lookup_cfg is None:
-            raise ValueError("filepath_ref missing and no lookup_cfg provided.")
+            raise ValueError(f"{ref_column} missing and no lookup_cfg provided.")
         engine = ReferenceLookupEngine(lookup_cfg)
         full = engine.resolve_dataframe(full)
+        ref_column = "filepath_ref"  # resolve_dataframe output column name
 
     if validate_ref_exists:
-        missing = full["filepath_ref"].fillna("").eq("").sum()
+        missing = full[ref_column].fillna("").eq("").sum()
         if missing > 0:
-            raise ValueError(f"{missing} rows still do not have filepath_ref after lookup.")
+            raise ValueError(f"{missing} rows still do not have {ref_column} after lookup.")
+
+    # 최종 필수 컬럼 확인
+    required_cols = [deg_column, ref_column, tmos_column, "db"]
+    missing_cols = [c for c in required_cols if c not in full.columns]
+    if missing_cols:
+        raise ValueError(f"Training manifest missing required columns: {missing_cols}")
 
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     full.to_csv(output_csv, index=False)
@@ -77,7 +95,10 @@ def build_inference_manifest_from_csv(
     lookup_cfg: Optional[LookupConfig] = None,
 ) -> pd.DataFrame:
     df = read_csv_resolve_paths(infer_csv)
-    df = _resolve_deg_paths(df, root_dir, deg_column)
+    df = _resolve_column_paths(df, root_dir, deg_column)
+
+    if "filepath_ref" in df.columns:
+        df = _resolve_column_paths(df, root_dir, "filepath_ref")
 
     if "filepath_ref" not in df.columns or df["filepath_ref"].fillna("").eq("").any():
         if lookup_cfg is None:
