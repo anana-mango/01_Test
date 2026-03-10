@@ -1,0 +1,17 @@
+from pathlib import Path
+
+# 여기 폴더 경로만 바꿔서 사용
+folder_path = r"C:\Users\YourName\Desktop\test_folder"
+
+path = Path(folder_path)
+
+if not path.exists():
+    print("지정한 경로가 존재하지 않습니다.")
+elif not path.is_dir():
+    print("지정한 경로가 폴더가 아닙니다.")
+else:
+    for item in path.iterdir():
+        if item.is_file():
+            name = item.stem
+            ext = item.suffix[1:] if item.suffix else ""
+            print(name, ext)
