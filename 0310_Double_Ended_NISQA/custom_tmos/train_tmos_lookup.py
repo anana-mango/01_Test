@@ -57,7 +57,7 @@ def patch_args_for_double_ended_tmos(args: Dict[str, Any], output_dir: Path, man
 
     # 새 모델 학습이면 pretrained 제거
     if not args.get("pretrained_model"):
-        args.pop("pretrained_model", None)
+        args["pretrained_model"] = ""
 
     return args
 
