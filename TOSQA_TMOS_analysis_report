@@ -1,0 +1,174 @@
+# ACQUA TMOS 예측기 설계 메모
+
+## 1. 현재까지 정리된 전제
+
+### 1-1. 목표
+내 목표는 HEAD acoustics ACQUA가 산출하는 **TMOS** 점수를 예측하는 알고리즘을 만드는 것이다.
+
+### 1-2. TOSQA / TMOS에 대해 현재까지 이해한 핵심
+- ACQUA의 TOSQA / TOSQA2001 계열은 **reference 신호와 degraded 신호를 비교하는 intrusive(full-reference) 품질 평가 방식**이다.
+- 공개 문서 기준으로 TOSQA 계열은 대략 다음 흐름을 가진다.
+  1. reference / degraded 정렬
+  2. 레벨 보정
+  3. short-time 분석
+  4. 음성구간 검출
+  5. 대역 제한 및 terminal weighting
+  6. loudness-domain 또는 Bark-domain 유사 특징 계산
+  7. Bark-spectral similarity 기반 비교
+  8. 최종 MOS 축으로 변환
+- 다만 **ACQUA 내부의 TMOS 최종 산출식 전체가 공개 문헌만으로 완전 복원되는지는 불확실**하다.
+- 따라서 현실적인 방향은 다음 2가지 중 하나다.
+  - 공개된 intrusive 구조를 최대한 반영한 **surrogate predictor**
+  - ACQUA가 만든 TMOS를 직접 target으로 두고 학습하는 **data-driven predictor**
+
+### 1-3. NISQA와의 연결
+- NISQA는 원래 speech quality prediction용 딥러닝 프레임워크다.
+- 공식 저장소 기준으로
+  - **single-ended 모델 학습**
+  - **double-ended 모델 학습**
+  - **finetuning / transfer learning**
+  이 모두 가능하다.
+- 따라서 ACQUA TMOS를 새로운 regression target으로 삼아 NISQA를 기반으로 커스텀 모델을 만드는 것이 현실적인 선택지다.
+
+---
+
+## 2. NISQA single-ended / double-ended 구조 요약
+
+### 2-1. Single-ended
+- 입력: degraded wav 하나
+- 특징: reference 없이 degraded 신호만 보고 점수를 예측
+- 장점:
+  - 사용이 편하다
+  - 운영환경에서 적용이 쉽다
+  - 배포가 단순하다
+- 단점:
+  - 원신호 대비 얼마나 망가졌는지를 직접 비교하지 못한다
+  - TMOS처럼 full-reference 성격이 강한 타깃에는 한계가 있을 수 있다
+
+### 2-2. Double-ended
+- 입력: reference wav + degraded wav
+- 특징: 두 신호를 함께 보고 품질을 예측
+- 보통 Siamese 구조와 attention alignment를 사용해 시간축 차이를 다룬다
+- 장점:
+  - 원신호 대비 열화를 직접 반영할 수 있다
+  - TMOS처럼 intrusive 성격의 점수에는 더 잘 맞을 가능성이 높다
+- 단점:
+  - 추론 때마다 reference 파일이 필요하다
+  - 사용성이 떨어질 수 있다
+
+---
+
+## 3. 내가 고민한 실무 문제
+내가 처음에는 입력을 degraded wav 하나로 생각했기 때문에, double-ended는 추론 때마다 reference를 지정해야 한다는 점이 불편하다.
+
+하지만 TMOS 예측 정확도가 유의미하게 올라간다면, 이 불편을 감수할 수도 있다.
+
+그래서 정확도와 사용성 사이 절충안으로 **하이브리드 방식**을 검토하게 되었다.
+
+---
+
+## 4. 하이브리드 방식 1: Library Lookup
+
+### 4-1. 개념
+사용자가 degraded wav만 넣더라도, 시스템 내부에서 대응되는 reference wav를 **자동으로 찾아서 붙여주는 방식**이다.
+
+즉 사용자 경험은 거의 single-ended처럼 보이지만, 실제 모델은 double-ended로 동작한다.
+
+### 4-2. 동작 방식
+1. 내부에 reference wav 라이브러리를 저장해 둔다
+2. degraded 파일명, test ID, scenario ID, CSV 매핑, 메타데이터 등을 이용해 대응 ref를 자동 검색한다
+3. 최종적으로 `(ref, deg)` 쌍을 모델에 넣어 TMOS를 예측한다
+
+### 4-3. 장점
+- double-ended의 정확도 장점을 유지할 수 있다
+- 사용자는 ref를 수동 지정하지 않아도 된다
+- 시험실 / 사내 파이프라인에서는 매우 실용적이다
+
+### 4-4. 단점
+- ref 라이브러리 관리 체계가 필요하다
+- 매칭 규칙이 틀리면 결과도 틀어진다
+- 임의 입력 wav에는 적용이 어려울 수 있다
+
+### 4-5. 적합한 상황
+- 실험 신호 셋이 정해져 있다
+- reference 세트가 이미 관리되고 있다
+- 파일명 또는 메타데이터로 자동 매칭이 가능하다
+
+### 4-6. 내 상황에서의 의미
+내가 다루는 환경이 일반 사용자용 앱보다는 **시험/측정 파이프라인**에 가까우므로, 이 방식은 매우 현실적이다.
+
+즉 “reference를 명시해야 하는 귀찮음”은 모델 구조가 아니라 **운영 방식**으로 해결하는 접근이다.
+
+---
+
+## 5. 하이브리드 방식 2: Teacher–Student
+
+### 5-1. 개념
+학습 단계에서는 double-ended teacher 모델을 써서 정확도를 최대한 확보하고, 운영 단계에서는 degraded 하나만 넣는 single-ended student 모델을 사용하는 방식이다.
+
+### 5-2. 구조
+- Teacher
+  - 입력: `(ref, deg)`
+  - 목표: ACQUA TMOS
+- Student
+  - 입력: `(deg)`
+  - 목표:
+    - 실제 ACQUA TMOS
+    - teacher가 낸 예측값
+    - 필요하면 teacher의 중간 feature 또는 soft target
+
+### 5-3. 핵심 아이디어
+reference가 있을 때 teacher가 배운 정보를 student에게 증류(distillation)해서, student가 **reference 없이도 teacher와 비슷하게 행동**하도록 만든다.
+
+### 5-4. 장점
+- 운영 시 degraded 하나만 넣으면 된다
+- 사용성이 좋다
+- pure single-ended보다 성능이 좋아질 가능성이 있다
+
+### 5-5. 단점
+- pure double-ended보다 정확도가 약간 떨어질 수 있다
+- teacher / student 두 단계 학습이 필요하다
+- distillation loss, teacher target, feature matching 전략을 잘 설계해야 한다
+
+### 5-6. 적합한 상황
+- 나중에는 degraded 하나만 넣는 사용성이 필요하다
+- 하지만 학습 시점에는 reference 쌍 데이터를 충분히 활용할 수 있다
+- 정확도와 실용성을 모두 잡고 싶다
+
+### 5-7. 내 상황에서의 의미
+내가 처음에 원했던 사용 방식은 degraded-only 입력이었으므로, teacher–student는 가장 자연스러운 절충안 중 하나다.
+
+즉 개발 단계에서는 double-ended의 장점을 취하고, 배포 단계에서는 single-ended처럼 쓸 수 있게 하는 방식이다.
+
+---
+
+## 6. 현재 시점에서의 정리
+
+### 선택지 A. Pure Double-Ended
+- 정확도 최우선
+- ref를 항상 넣어야 함
+
+### 선택지 B. Library Lookup + Double-Ended
+- 정확도 우선
+- 사용자 불편은 자동 ref 매칭으로 줄임
+- 현재 시험실 환경에 특히 적합
+
+### 선택지 C. Teacher–Student
+- 학습은 double-ended
+- 추론은 single-ended
+- 정확도와 사용성의 절충안
+
+---
+
+## 7. 현재 기준의 실무적 우선순위
+
+1. **먼저 double-ended 기준선 모델을 만든다**
+   - ceiling 성능 확인
+   - TMOS와 가장 구조적으로 잘 맞음
+
+2. 그 다음 두 갈래로 확장한다
+   - **Library Lookup 운영형**
+   - **Teacher–Student 배포형**
+
+즉 처음부터 single-ended만 고집하기보다,
+**double-ended 기준 성능을 먼저 확보한 뒤 사용성 개선 방향으로 나아가는 것이 합리적이다.**
