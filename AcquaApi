@@ -476,3 +476,396 @@ namespace AcquaControlManager
         }
 
         #endregion Hardware Front-End
+
+ #region ETC Function
+
+        public static void ActiveProject(int projectGroupIndex, int projectIndex, int loadingTimeout = 10000)
+        {
+            if (CurrentAcquaProjectGroup == null ||
+                AcquaApp.ProjectGroups.Item[CurrentProjectGroupIndex].Title != AcquaApp.ProjectGroups.Item[projectGroupIndex].Title)
+            {
+                CurrentAcquaProjectGroup = AcquaApp.ProjectGroups.Item[projectGroupIndex];
+                CurrentAcquaProject = null;
+                Thread.Sleep(2000);
+                WriteLog(ELogType.Info, string.Format("Project Group Loaded Completely.\nAcquaProjectGroup.Title : {0} Loaded", CurrentAcquaProjectGroup.Title));
+
+                CurrentProjectGroupIndex = projectGroupIndex;
+            }
+
+            if (CurrentAcquaProject == null ||
+                CurrentAcquaProjectGroup.Projects.Item[CurrentProjectIndex].Title != CurrentAcquaProjectGroup.Projects.Item[projectIndex].Title)
+            {
+                CurrentAcquaProject = CurrentAcquaProjectGroup.Projects.Item[projectIndex];
+                WriteLog(ELogType.Info, string.Format("Project Loaded Completely.\nAcquaProject.Title : {0} Loaded", CurrentAcquaProject.Title));
+
+                CurrentAcquaProject.SelectAsActive();
+                Thread.Sleep(6000);
+
+                Thread.Sleep(loadingTimeout);
+
+                CurrentProjectIndex = projectIndex;
+            }
+
+            while (AcquaApp.SelectedProjectLoaded == false)    //Project 동일 시 SelectedProjectLoaded가 계속 true라 의미가 없음
+                Thread.Sleep(1000);
+
+            if (AcquaApp.SelectedProject == null)
+            {
+                WriteLog(ELogType.Warn, "Project is not activated!");
+                throw new Exception("Project is not activated!");
+            }
+        }
+
+        //체크된 사업자 인덱스 프로젝트를 active + MO Add Active
+        public static void ActiveMeasurementObject(int projectGroupIndex, int projectIndex, string objectName, int loadingTimeout = 10000)
+        {
+            ActiveProject(projectGroupIndex, projectIndex, loadingTimeout);
+            bool objectAreadyExist = false;
+            foreach (IMObject mObjectOverLap in CurrentAcquaProject.MeasurementObjects)
+                if (mObjectOverLap.Title == objectName) objectAreadyExist = true;
+
+            if (objectAreadyExist == false)
+            {
+                CurrentAcquaProject.MeasurementObjects.AddMeasurementObject(objectName, "");
+                WriteLog(ELogType.Info, "MeasurementObejct " + objectName + " added");
+            }
+
+            AcquaMObject = AcquaApp.SelectedProject.SelectActiveMeasurementObject(objectName);
+            WriteLog(ELogType.Info, "MeasurementObejct " + objectName + " activated");
+
+        }//Set End
+
+        /// <summary>
+        /// return to int index / return [-2 : ProjectSelected == null], [-3 : Exception]
+        /// Find SMD 전체 루프를 돌린 뒤 SmdTitleOverLap.Clear() 필요
+        /// </summary>
+        /// <param name="smdtitle"></param>
+        /// <returns></returns>
+        public static int FindSmdId(string smdtitle)
+        {
+            try
+            {
+                AcquaIProjectSelected = AcquaApp.SelectedProject;
+
+                int idx = 0;
+
+                if (AcquaIProjectSelected == null)
+                    Thread.Sleep(3000);
+
+                if (AcquaIProjectSelected == null)
+                {
+                    WriteLog(ELogType.Warn, "선택된 프로젝트가 없습니다");
+                    MessageBox.Show("선택된 프로젝트가 없습니다");
+                    return -2; //실패
+                }
+
+                int OverLapCount = 0;
+                foreach (string overLapCheck in SmdTitleOverLap)
+                    if (smdtitle == overLapCheck) OverLapCount++;
+
+                if (OverLapCount != 0)
+                {
+                    AcquaIProjectSelected.FindFirstSMD(smdtitle);
+
+                    for (; OverLapCount > 0; OverLapCount--)
+                        idx = AcquaIProjectSelected.FindNextSMD();
+                }
+                else idx = AcquaIProjectSelected.FindFirstSMD(smdtitle);
+
+                //중복된 SMD Title 이 없을 시 FindNextSMD()는 -1을 return
+                if (AcquaIProjectSelected.FindNextSMD() > 0)
+                    SmdTitleOverLap.Add(smdtitle);
+
+                WriteLog(0, string.Format("Project : {0} / SMD Title : {1} / ID : {2}", AcquaIProjectSelected.Title, smdtitle, idx));
+
+                return idx;
+
+            }
+            catch (Exception ex)
+            {
+                WriteLog(ELogType.Error, "FindSmdId ex : " + ex.Message);
+                return -3;
+            }
+
+
+        }
+
+        //Server가 꺼져있는데 서버 connect 시도 시 DB 날아감.
+        public static void CheckSQLServer(string myServiceName)
+        {
+            try
+            {
+                string status;
+                ServiceController mySC = new ServiceController(myServiceName);
+
+                status = mySC.Status.ToString();
+                if (status == "Running")
+                    WriteLog(ELogType.Info, "SQL Server is Running");
+                else if (status == "Stopped")
+                {
+                    MessageBox.Show("SQL Server is Stopped!\nCheck SQL Server Configuration!");
+                    WriteLog(ELogType.Warn, "SQL Server is Stopped!\nCheck SQL Server Configuration!");
+                    Application.Exit();
+                }
+                else if (status == "Pause")
+                {
+                    MessageBox.Show("SQL Server is Paused!\nCheck SQL Server Configuration!");
+                    WriteLog(ELogType.Warn, "SQL Server is Paused!\nCheck SQL Server Configuration!");
+                    Application.Exit();
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteLog(ELogType.Error, "SQL Server ex : " + ex.Message);
+                MessageBox.Show("SQL Server ex : " + ex.Message);
+            }
+
+        }
+
+        public static void SetSystemVariable(string name, double delay, string physicalUnit = "ms")
+        {
+            try
+            {
+                string varName = "System." + name.Replace("System.", "").Replace("system.", "");
+                HEADACQUAlyzer.IVariable ivar;
+
+                if (!AcquaVariables.Exists(varName))
+                {
+                    ivar = AcquaVariables.Add();
+                    ivar.Name = varName;
+                    ivar.PhysicalUnit = physicalUnit;
+                    ivar.Value = delay;
+                    ivar.State = EVariableState.evsUserDefined;
+                    WriteLog(ELogType.Debug, string.Format("{0} : {1} 생성", varName, delay));
+                }
+                else
+                {
+                    for (int i = 0; i < AcquaVariables.Count; i++)
+                    {
+                        if (AcquaVariables[i].Name == varName)
+                        {
+                            ivar = AcquaVariables[i];
+                            ivar.PhysicalUnit = physicalUnit;
+                            ivar.Value = delay;
+                            ivar.State = EVariableState.evsUserDefined;
+                            WriteLog(ELogType.Info, string.Format("{0} : {1} 변수설정 완료", AcquaVariables[i].Name, delay));
+                            break;
+                        }
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                WriteLog(ELogType.Error, "SetSytemVariable ex :" + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// System.D_RCV_NET / System.D_SND_NET 에 각각 매개변수 값 저장
+        /// </summary>
+        /// <param name="delay"></param>
+        public static void SetVariableDelay(double downlinkDelay, double uplinkDelay)//double[] delay)
+        {
+            try
+            {
+
+                string D_RCV = "System.D_RCV_NET";
+                string D_SND = "System.D_SND_NET";
+                string D_SR_REA = "System.D_SR_REA";// MFE System : 1.8ms | labCORE System : 1.13ms
+
+                Func<IVariable, string, double, IVariable> GenIVar = (variable, name, value) =>
+                  {
+                      HEADACQUAlyzer.IVariable ivar = variable;
+                      ivar.Name = name;
+                      ivar.PhysicalUnit = "ms";
+                      ivar.Value = value;
+                      ivar.State = EVariableState.evsUserDefined;
+
+                      return ivar;
+                  };
+
+                // Equipment Delay
+                if (!AcquaVariables.Exists(D_SR_REA))
+                {
+                    GenIVar(AcquaVariables.Add(), D_SR_REA, LabcoreConnected ? 1.13 : 1.8);
+                    WriteLog(ELogType.Debug, string.Format("{0} : {1} 생성", D_SR_REA, LabcoreConnected ? 1.13 : 1.8));
+                }
+
+                // RCV
+                if (!AcquaVariables.Exists(D_RCV))
+                {
+                    GenIVar(AcquaVariables.Add(), D_RCV, downlinkDelay);
+                    WriteLog(ELogType.Debug, string.Format("{0} : {1}", D_RCV, downlinkDelay));
+                }
+                else
+                {
+                    for (int i = 0; i < AcquaVariables.Count; i++)
+                    {
+                        if (AcquaVariables[i].Name == D_RCV)
+                        {
+                            GenIVar(AcquaVariables[i], D_RCV, downlinkDelay);
+                            WriteLog(ELogType.Info, string.Format("{0} : {1} 변수설정 완료", AcquaVariables[i].Name, downlinkDelay));
+                            break;
+                        }
+                    }
+                }
+
+                // SND
+                if (!AcquaVariables.Exists(D_SND))
+                {
+                    GenIVar(AcquaVariables.Add(), D_SND, uplinkDelay);
+                    WriteLog(ELogType.Debug, string.Format("{0} : {1}", D_SND, uplinkDelay));
+                }
+                else
+                {
+                    for (int j = 0; j < AcquaVariables.Count; j++)
+                    {
+                        if (AcquaVariables[j].Name == D_SND)
+                        {
+                            GenIVar(AcquaVariables[j], D_SND, uplinkDelay);
+                            WriteLog(ELogType.Info, string.Format("{0} : {1} 변수설정 완료", AcquaVariables[j].Name, uplinkDelay));
+                            break;
+                        }
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                WriteLog(ELogType.Error, "Setting Delay ex :" + ex.Message);
+            }
+
+        }
+
+        /// <summary>
+        /// "System."은 생략하고 작성
+        /// </summary>
+        /// <param name="varName">Omit "System."</param>
+        public static void DeleteVariable(string varName)
+        {
+            try
+            {
+                for (int i = 0; i < AcquaVariables.Count; i++)
+                {
+                    if (AcquaVariables[i].Name.Equals(string.Format("System.{0}", varName)))
+                    {
+                        AcquaVariables.Delete(i);
+                        WriteLog(ELogType.Debug, varName + "has deleted.");
+                        return;
+                    }
+                }
+                WriteLog(ELogType.Warn, "System." + varName + " does not exist.");
+
+            }
+            catch (Exception ex)
+            {
+                WriteLog(ELogType.Error, "Delete User Defined AcquaVariables Delay ex :" + ex.Message);
+            }
+        }
+
+        public static void CreateReport(Acqua3.IProjectgroup PG, Acqua3.IProject PJ, Acqua3.IMObject MO, string ReportName)
+        {
+            try
+            {
+                Acqua3.EReportSelectionType ReportType = Acqua3.EReportSelectionType.erstAllPositions;
+
+                PJ.SelectAsActive();
+
+                Thread.Sleep(3000);
+
+                while (!AcquaApp.SelectedProjectLoaded)
+                    Application.DoEvents();
+
+
+                AcquaApp.SelectedProject.CreateReportForMO(MO.RowID, ReportType, ReportName, 1);
+
+            }
+            catch (Exception Error)
+            {
+                WriteLog(ELogType.Error, "CreateReport ex : " + Error.Message);
+            }
+
+
+        }
+
+        public static void SetSingleDescription(string description)
+        {
+            try
+            {
+                HEADACQUAlyzer.ISingleValues SingleValues = AcquaMeasurementEngine.SingleValues;
+                HEADACQUAlyzer.ISingleRunValues singleRValue = SingleValues[0];
+
+                for (int i = 0; i < singleRValue.Count; i++)
+                {
+                    WriteLog(ELogType.Debug, "Set SingleDescription");
+                    singleRValue[i].Description = description;
+
+                }
+
+                return;
+
+            }
+
+            catch (Exception ex)
+            {
+                WriteLog(ELogType.Error, "SetSingleDescription : " + ex.Message);
+                return;
+
+            }
+
+        }
+
+        public static bool ObjNameCheck(string name)
+        {
+            foreach (Acqua3.IProject project in CurrentAcquaProjectGroup.Projects)
+            {
+                foreach (Acqua3.IMObject mo in project.MeasurementObjects)
+                {
+                    if (mo.Title.Equals(name))//이름이 중복되는게 있을 경우
+                    {
+                        WriteLog(ELogType.Warn, "이름을 변경하세요. 중복되는 오브젝트가 있습니다.");
+                        MessageBox.Show("이름을 변경하세요. 중복되는 게 있습니다.");
+                        return false;
+                    }
+                }
+            }
+            WriteLog(ELogType.Debug, "중복 없음.");
+            return true;
+        }
+
+        /// <summary>
+        /// Acqua3.IProject 사용 시 간헐적으로 초기화 되는 경우 리로딩 해주는 메서드
+        /// </summary>
+        //public static void ReloadProjectValue() { AcquaIProject = AcquaIProjectGroup.Projects.Item[CurrentProjectIndex]; }
+        /// <summary>
+        /// Acqua3.IProject 사용 시 간헐적으로 초기화 되는 경우 리로딩 해주는 메서드
+        /// </summary>
+        public static void ReloadMObjectValue() { _AcquaIMObject = AcquaApp.SelectedProject.SelectActiveMeasurementObject(_AcquaCurrentMObjectTitle); }
+
+        #endregion ETC Function
+
+
+        #region Events
+
+        private static void AcquaApp_OnBeginSingleMeasurement(string SMDTitle, int Progress, int NbrOfMeasurements)
+        {
+            AcquaSingleMeasurementStarted = true;
+            AcquaSingleMeasurementFinished = false;
+        }
+
+        private static void AcquaApp_OnFinishedSingleMeasurement(string SMDTitle, EMEResult ResultStatus, int Progress, int NbrOfMeasurements, ref EUserReaction UserReaction)
+        {
+            AcquaSingleMeasurementStarted = false;
+            AcquaSingleMeasurementFinished = true;
+
+            if (UserReaction != EUserReaction.eurNoReactionNeeded)
+                WriteLog(ELogType.Debug, string.Format("UserReaciton : {0}", nameof(UserReaction)));
+        }
+
+        #endregion Events
+
+    }//class end
+
+
+}//namespace end
