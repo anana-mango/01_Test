@@ -11,6 +11,31 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 import numpy as np
 import soundfile as sf
 import yaml
+
+import yaml
+from yaml.loader import SafeLoader
+
+class TupleSafeLoader(SafeLoader):
+    pass
+
+def _construct_python_tuple(loader, node):
+    return tuple(loader.construct_sequence(node))
+
+TupleSafeLoader.add_constructor(
+    "tag:yaml.org,2002:python/tuple",
+    _construct_python_tuple,
+)
+
+def read_yaml(path):
+    with path.open("r", encoding="utf-8") as f:
+        data = yaml.load(f, Loader=TupleSafeLoader)
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError(f"YAML must contain a dict at top-level: {path}")
+    return data
+
+
 from scipy.signal import resample_poly
 
 
