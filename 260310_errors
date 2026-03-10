@@ -1,6 +1,7 @@
-2026-03-10 17:44:39,981 | INFO | custom_tmos.dataset_double_ended_lookup | Training manifest saved to C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\outputs\tmos_train_smoketest\manifests\train_val_resolved.csv (10 rows)
-2026-03-10 17:44:39,982 | INFO | __main__ | Initializing NISQA double-ended TMOS training...
+2026-03-10 17:52:57,562 | INFO | custom_tmos.dataset_double_ended_lookup | Training manifest saved to C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\outputs\tmos_train_smoketest\manifests\train_val_resolved.csv (10 rows)
+2026-03-10 17:52:57,564 | INFO | __main__ | Initializing NISQA double-ended TMOS training...
 Device: cuda
+Model architecture: NISQA_DE
 Traceback (most recent call last):
   File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\runpy.py", line 197, in _run_module_as_main
     return _run_code(code, main_globals, None,
@@ -10,8 +11,10 @@ Traceback (most recent call last):
     main()
   File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\custom_tmos\train_tmos_lookup.py", line 117, in main
     model = nisqaModel(nisqa_args)
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 34, in __init__
-    self._loadModel()
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 933, in _loadModel
-    if self.args['pretrained_model']:
-KeyError: 'pretrained_model'
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 35, in __init__
+    self._loadDatasets()
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 740, in _loadDatasets
+    self._loadDatasetsCSV()
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 859, in _loadDatasetsCSV
+    raise ValueError('Not all dbs found in csv:', missing_datasets)
+ValueError: ('Not all dbs found in csv:', {'NISQA_VAL_SIM', 'NISQA_TRAIN_SIM', 'NISQA_VAL_LIVE', 'NISQA_TRAIN_LIVE'})
