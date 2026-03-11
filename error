@@ -1,0 +1,147 @@
+2026-03-11 10:59:35,117 | INFO | custom_tmos.dataset_double_ended_lookup | Training manifest saved to C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\outputs\tmos_train_smoketest\manifests\train_val_resolved.csv (234 rows)
+2026-03-11 10:59:35,117 | INFO | __main__ | Initializing NISQA double-ended TMOS training...
+2026-03-11 10:59:35,117 | INFO | __main__ | csv_file=outputs\tmos_train_smoketest\manifests\train_val_resolved.csv
+2026-03-11 10:59:35,117 | INFO | __main__ | csv_deg=filepath_deg
+2026-03-11 10:59:35,121 | INFO | __main__ | csv_ref=filepath_ref
+2026-03-11 10:59:35,121 | INFO | __main__ | csv_mos_train=tmos
+2026-03-11 10:59:35,121 | INFO | __main__ | csv_mos_val=tmos
+2026-03-11 10:59:35,121 | INFO | __main__ | csv_db_train=['train']
+2026-03-11 10:59:35,121 | INFO | __main__ | csv_db_val=['val']
+2026-03-11 10:59:35,122 | INFO | __main__ | pretrained_model=''
+Device: cuda
+Model architecture: NISQA_DE
+Training size: 117, Validation size: 117
+name: TMOS_DE_SMOKETEST
+data_dir: C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master
+output_dir: C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\outputs\tmos_train_smoketest
+pretrained_model: ''
+csv_file: outputs\tmos_train_smoketest\manifests\train_val_resolved.csv
+csv_con: null
+csv_deg: filepath_deg
+csv_ref: filepath_ref
+csv_mos_train: tmos
+csv_mos_val: tmos
+csv_db_train: [train]
+csv_db_val: [val]
+tr_epochs: 3
+tr_early_stop: 20
+tr_bs: 2
+tr_bs_val: 2
+tr_lr: 0.001
+tr_lr_patience: 15
+tr_num_workers: 0
+tr_parallel: false
+tr_ds_to_memory: false
+tr_ds_to_memory_workers: 0
+tr_device: null
+tr_checkpoint: every_epoch
+tr_verbose: 2
+tr_bias_mapping: null
+tr_bias_min_r: null
+tr_bias_anchor_db: null
+ms_sr: null
+ms_fmax: 20000
+ms_n_fft: 4096
+ms_hop_length: 0.01
+ms_win_length: 0.02
+ms_n_mels: 48
+ms_seg_length: 15
+ms_seg_hop_length: 4
+ms_max_segments: 1300
+ms_channel: null
+model: NISQA_DE
+cnn_model: adapt
+cnn_c_out_1: 16
+cnn_c_out_2: 32
+cnn_c_out_3: 64
+cnn_kernel_size: !!python/tuple [3, 3]
+cnn_dropout: 0.2
+cnn_fc_out_h: null
+cnn_pool_1: [24, 7]
+cnn_pool_2: [12, 5]
+cnn_pool_3: [6, 3]
+td: self_att
+td_sa_d_model: 64
+td_sa_nhead: 1
+td_sa_pos_enc: false
+td_sa_num_layers: 2
+td_sa_h: 64
+td_sa_dropout: 0.1
+td_lstm_h: null
+td_lstm_num_layers: null
+td_lstm_dropout: null
+td_lstm_bidirectional: null
+td_2: self_att
+td_2_sa_d_model: 64
+td_2_sa_nhead: 1
+td_2_sa_pos_enc: false
+td_2_sa_num_layers: 2
+td_2_sa_h: 64
+td_2_sa_dropout: 0.1
+td_2_lstm_h: null
+td_2_lstm_num_layers: null
+td_2_lstm_dropout: null
+td_2_lstm_bidirectional: null
+pool: att
+pool_att_h: 128
+pool_att_dropout: 0
+de_align: cosine
+de_align_apply: hard
+de_fuse: x/y/-
+de_fuse_dim: null
+nisqa_base_yaml: config/train_nisqa_double_ended.yaml
+seed: 42
+train_csv: ./data/metadata_tmos_2ch_split.csv
+val_csv: ./data/metadata_tmos_2ch_split.csv
+tmos_column: tmos
+mode: main
+dim: false
+double_ended: true
+now: 2026-03-11 10:59:35.418759
+
+2026-03-11 10:59:35,423 | INFO | __main__ | Start training.
+runname: TMOS_DE_SMOKETEST_260311_105935418759
+C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\optim\lr_scheduler.py:28: UserWarning: The verbose parameter is deprecated. Please use get_last_lr() to access the learning rate.
+  warnings.warn("The verbose parameter is deprecated. Please use get_last_lr() "
+--> start training
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>   0%, 0/59, 00:00<?Traceback (most recent call last):
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\custom_tmos\train_tmos_lookup.py", line 151, in <module>
+    main()
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\custom_tmos\train_tmos_lookup.py", line 146, in main
+    model.train()
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 46, in train
+    self._train_mos()    
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 146, in _train_mos
+    yb_mos_hat = self.model(xb_spec, n_wins)
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_lib.py", line 411, in forward
+    y = self.cnn(y, n_wins_y)
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_lib.py", line 495, in forward
+    x = self.model(x_packed.data)
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_lib.py", line 690, in forward
+    x = F.relu( self.bn1( self.conv1(x) ) )
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1511, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1520, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\batchnorm.py", line 175, in forward
+    return F.batch_norm(
+  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\functional.py", line 2482, in batch_norm
+    return torch.batch_norm(
+torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 72.00 MiB. GPU 0 has a total capacity of 6.00 GiB of which 4.35 GiB is free. Of the allocated memory 566.66 MiB is allocated by PyTorch, and 39.34 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>   0%, 0/59, 00:30<?
