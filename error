@@ -1,48 +1,6 @@
-2026-03-11 13:08:51,733 | INFO | __main__ | Start training.
-runname: TMOS_DE_SMOKETEST_260311_130851729187
-C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\optim\lr_scheduler.py:28: UserWarning: The verbose parameter is deprecated. Please use get_last_lr() to access the learning rate.
-  warnings.warn("The verbose parameter is deprecated. Please use get_last_lr() "
---> start training
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>   0%, 0/59, 00:00<?Traceback (most recent call last):
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\runpy.py", line 197, in _run_module_as_main
-    return _run_code(code, main_globals, None,
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\runpy.py", line 87, in _run_code
-    exec(code, run_globals)
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\custom_tmos\train_tmos_lookup.py", line 151, in <module>
-    main()
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\custom_tmos\train_tmos_lookup.py", line 146, in main
-    model.train()
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 46, in train
-    self._train_mos()
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 146, in _train_mos
-    yb_mos_hat = self.model(xb_spec, n_wins)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1511, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1520, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_lib.py", line 416, in forward
-    y = self.align(x, y, n_wins_y)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1511, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1520, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_lib.py", line 1281, in forward
-    att_score, sim = self.att(query, y)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1511, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1520, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_lib.py", line 1306, in forward
-    att = self.pdist(query.unsqueeze(2), y.unsqueeze(1))
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1511, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1520, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\distance.py", line 89, in forward
-    return F.cosine_similarity(x1, x2, self.dim, self.eps)
-RuntimeError: CUDA error: out of memory
-CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
-For debugging consider passing CUDA_LAUNCH_BLOCKING=1.
-Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
-
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>   0%, 0/59, 00:06<?
+uery dtype = torch.float32 device = cuda:0
+y dtype = torch.float32 device = cuda:0
+query.shape = torch.Size([2, 810, 64])
+y.shape = torch.Size([2, 810, 64])
+query.unsqueeze(2).shape = torch.Size([2, 810, 1, 64])
+y.unsqueeze(1).shape = torch.Size([2, 1, 810, 64])
