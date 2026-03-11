@@ -1,44 +1,418 @@
-2026-03-11 09:30:50,368 | INFO | __main__ | Start training.
-runname: TMOS_DE_SMOKETEST_260311_093050363445
-C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\optim\lr_scheduler.py:28: UserWarning: The verbose parameter is deprecated. Please use get_last_lr() to access the learning rate.
-  warnings.warn("The verbose parameter is deprecated. Please use get_last_lr() "
---> start training
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>   0%, 0/59, 00:00<?Traceback (most recent call last):
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\runpy.py", line 197, in _run_module_as_main
-    return _run_code(code, main_globals, None,
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\runpy.py", line 87, in _run_code
-    exec(code, run_globals)
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\custom_tmos\train_tmos_lookup.py", line 151, in <module>
-    main()
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\custom_tmos\train_tmos_lookup.py", line 146, in main
-    model.train()
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 46, in train
-    self._train_mos()
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_model.py", line 146, in _train_mos
-    yb_mos_hat = self.model(xb_spec, n_wins)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1511, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1520, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_lib.py", line 416, in forward
-    y = self.align(x, y, n_wins_y)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1511, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1520, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_lib.py", line 1281, in forward
-    att_score, sim = self.att(query, y)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1511, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1520, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "C:\Users\sw.kyung\0_Coding\01_Python\01_WORK\2026_Tx_Simul\Project2\NISQA_master\nisqa\NISQA_lib.py", line 1306, in forward
-    att = self.pdist(query.unsqueeze(2), y.unsqueeze(1))
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1511, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\module.py", line 1520, in _call_impl
-    return forward_call(*args, **kwargs)
-  File "C:\ProgramData\miniconda3\envs\nisqa_gpu\lib\site-packages\torch\nn\modules\distance.py", line 89, in forward
-    return F.cosine_similarity(x1, x2, self.dim, self.eps)
-torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 322.00 MiB. GPU 0 has a total capacity of 6.00 GiB of which 3.23 GiB is free. Of the allocated memory 1.66 GiB is allocated by PyTorch, and 36.77 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>   0%, 0/59, 00:33<?
+Project2
+│   ├── folder_tree
+│   ├── get_filelist_in_folder.py
+│   ├── tree_simple.py
+│   ├── .vscode
+│   │   ├── settings.json
+│   ├── NISQA_master
+│   │   ├── .gitignore
+│   │   ├── env.yml
+│   │   ├── LICENSE
+│   │   ├── README.md
+│   │   ├── run_evaluate.py
+│   │   ├── run_predict.py
+│   │   ├── run_train.py
+│   │   ├── config
+│   │   │   ├── evaluate_tmos_lookup.yaml
+│   │   │   ├── finetune_nisqa.yaml
+│   │   │   ├── finetune_nisqa_multidimensional.yaml
+│   │   │   ├── predict_tmos_lookup.yaml
+│   │   │   ├── train_nisqa_cnn_lstm_avg.yaml
+│   │   │   ├── train_nisqa_cnn_sa_ap.yaml
+│   │   │   ├── train_nisqa_double_ended.yaml
+│   │   │   ├── train_tmos_double_ended_lookup.yaml
+│   │   ├── custom_tmos
+│   │   │   ├── dataset_double_ended_lookup.py
+│   │   │   ├── evaluate_tmos_lookup.py
+│   │   │   ├── lookup.py
+│   │   │   ├── make_tmos_csv_from_txt_2ch.py
+│   │   │   ├── predict_tmos_lookup.py
+│   │   │   ├── train_tmos_lookup.py
+│   │   │   ├── utils_io.py
+│   │   │   ├── utils_mapping.py
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── dataset_double_ended_lookup.cpython-39.pyc
+│   │   │   │   ├── lookup.cpython-39.pyc
+│   │   │   │   ├── train_tmos_lookup.cpython-39.pyc
+│   │   │   │   ├── utils_io.cpython-39.pyc
+│   │   │   │   ├── utils_mapping.cpython-39.pyc
+│   │   │   │   ├── __init__.cpython-39.pyc
+│   │   ├── data
+│   │   │   ├── metadata_tmos_2ch_split.csv
+│   │   │   ├── wavs
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index2_TimeSignal.wav
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index3_TimeSignal.wav
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index4_TimeSignal.wav
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index5_TimeSignal.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index10_TimeSignal.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index2_TimeSignal.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index3_TimeSignal.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index4_TimeSignal.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index5_TimeSignal.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index6_TimeSignal.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index7_TimeSignal.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index8_TimeSignal.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index9_TimeSignal.wav
+│   │   │   │   ├── 0417 PA2_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── 1031 A56_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 1031 A56_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── 1031 A57_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 1031 A57_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── 1107_M1 EUR_New PV2_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── 1107_M1 EUR_New PV2_SMD202_Index2_TimeSignal.wav
+│   │   │   │   ├── 1113_M3_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── 1114_m1_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── 1114_m1_SMD202_Index2_TimeSignal.wav
+│   │   │   │   ├── 1118_m1_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── 1119_M3_lib_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── 1120_M1_tune_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── 1124_M1_PV3_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── 1209_M1_CHN_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── 1209_M1_CHN_SMD202_Index2_TimeSignal.wav
+│   │   │   │   ├── 250114_Q7_TMOS_SMD564_Index1_TimeSignal.wav
+│   │   │   │   ├── 250114_Q7_TMOS_SMD564_Index2_TimeSignal.wav
+│   │   │   │   ├── 250114_Q7_TMOS_SMD564_Index3_TimeSignal.wav
+│   │   │   │   ├── 250114_Q7_TMOS_SMD564_Index4_TimeSignal.wav
+│   │   │   │   ├── 250204_A536_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── 250620_SKH_A536_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 250623_SKH_A536_SND_CAL_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 250811_SKH_A536_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 250925_A253C_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 250925_A253C_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── 250925_A253D_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 250925_A253D_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── 251016_Mate70RS_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 251016_Mate70RS_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── 251016_S25U_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 251016_S25U_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── 251021_A536_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 251203_OJT_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── 251204_A536_SMD1055_Index1_TimeSignal.wav
+│   │   │   │   ├── 251204_A536_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 251205_A536_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── 260202_A536_SMD1055_Index1_TimeSignal.wav
+│   │   │   │   ├── 260202_A536_SMD1055_Index2_TimeSignal.wav
+│   │   │   │   ├── 260206_A536_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── 260209_Q8_SMD1055_Index1_TimeSignal.wav
+│   │   │   │   ├── 260209_Q8_SMD1055_Index2_TimeSignal.wav
+│   │   │   │   ├── 260209_Q8_SMD1055_Index3_TimeSignal.wav
+│   │   │   │   ├── 260209_Q8_SMD564_Index1_TimeSignal.wav
+│   │   │   │   ├── 260209_Q8_SMD564_Index2_TimeSignal.wav
+│   │   │   │   ├── 260209_Q8_SMD564_Index3_TimeSignal.wav
+│   │   │   │   ├── A26_0224_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── A27_0211_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── A27_0220_DUMP_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── A27_0225_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── A27_0226_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── A27_0304_PFT_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── A27_0306_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── A27_0306_SMD202_Index2_TimeSignal.wav
+│   │   │   │   ├── APLLEULTRA2_COMP_0811_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── B7R_N41_AMR_WB_HS_SMD113_Index1_TimeSignal.wav
+│   │   │   │   ├── B7_N41_AMR_WB_HS_SMD113_Index1_TimeSignal.wav
+│   │   │   │   ├── Honor_Air_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── Jinju_250903_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── Jinju_250903_SMD629_Index2_TimeSignal.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index2_TimeSignal.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index3_TimeSignal.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index4_TimeSignal.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index5_TimeSignal.wav
+│   │   │   │   ├── L325 ref_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── L335_0202_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── L335_COMP_0811_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── L335_PV2_VOLTE_YD8_solo_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── L335_PV2_VOLTE_YD8_solo_SMD629_Index2_TimeSignal.wav
+│   │   │   │   ├── L345_0212_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── l345_dv2_0209_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── L345_VA3_DV2_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── L705_COMP_0811_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── M2_EUR_1126_PV3_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── M2_E_1111_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── M2_E_1111_SMD202_Index2_TimeSignal.wav
+│   │   │   │   ├── M2_Orange_1210_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── New Measurement Object_1_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── New Measurement Object_3_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── New Measurement Object_5_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── New Measurement Object_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── NTEST_06162_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── NTEST_0616_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── NTEST_0616_SMD1248_Index2_TimeSignal.wav
+│   │   │   │   ├── NTEST_0616_SMD1248_Index3_TimeSignal.wav
+│   │   │   │   ├── PS_B41_HS_AMR_SMD113_Index1_TimeSignal.wav
+│   │   │   │   ├── PS_B41_HS_EVS_NB_SMD113_Index1_TimeSignal.wav
+│   │   │   │   ├── Q7_N41_HS_AMR_SMD113_Index1_TimeSignal.wav
+│   │   │   │   ├── Redmagic10Pro_SMD1248_Index1_TimeSignal.wav
+│   │   │   │   ├── S25_Edge_SMD202_Index1_TimeSignal.wav
+│   │   │   │   ├── SM-S731U_N41_HS_EVS_WB_SMD113_Index1_TimeSignal.wav
+│   │   │   │   ├── V2_0212_COS_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── v2_0224_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── V2_DV2-1_#25_0130_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── V2_DV2_0204_COS_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── wav_score_mapping.txt
+│   │   │   │   ├── x2_ref_0130_SMD629_Index1_TimeSignal.wav
+│   │   │   │   ├── x2_ref_0130_SMD629_Index2_TimeSignal.wav
+│   │   │   │   ├── x2_ref_0130_SMD629_Index3_TimeSignal.wav
+│   │   │   │   ├── x2_ref_0130_SMD629_Index4_TimeSignal.wav
+│   │   │   │   ├── XC7P_N41_HS_AMR_SMD113_Index1_TimeSignal.wav
+│   │   │   │   ├── XCOVER7P_N41_HS_EVS_WB_SMD113_Index1_TimeSignal.wav
+│   │   │   ├── wavs_deg
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index3_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index4_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index5_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index10_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index3_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index4_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index5_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index6_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index7_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index8_TimeSignal_deg.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index9_TimeSignal_deg.wav
+│   │   │   │   ├── 0417 PA2_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1031 A56_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1031 A56_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1031 A57_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1031 A57_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1107_M1 EUR_New PV2_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1107_M1 EUR_New PV2_SMD202_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── 1113_M3_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1114_m1_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1114_m1_SMD202_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── 1118_m1_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1119_M3_lib_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1120_M1_tune_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1124_M1_PV3_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1209_M1_CHN_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 1209_M1_CHN_SMD202_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── 250114_Q7_TMOS_SMD564_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 250114_Q7_TMOS_SMD564_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── 250114_Q7_TMOS_SMD564_Index3_TimeSignal_deg.wav
+│   │   │   │   ├── 250114_Q7_TMOS_SMD564_Index4_TimeSignal_deg.wav
+│   │   │   │   ├── 250204_A536_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 250620_SKH_A536_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 250623_SKH_A536_SND_CAL_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 250811_SKH_A536_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 250925_A253C_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 250925_A253C_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 250925_A253D_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 250925_A253D_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 251016_Mate70RS_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 251016_Mate70RS_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 251016_S25U_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 251016_S25U_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 251021_A536_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 251203_OJT_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 251204_A536_SMD1055_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 251204_A536_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 251205_A536_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 260202_A536_SMD1055_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 260202_A536_SMD1055_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── 260206_A536_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 260209_Q8_SMD1055_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 260209_Q8_SMD1055_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── 260209_Q8_SMD1055_Index3_TimeSignal_deg.wav
+│   │   │   │   ├── 260209_Q8_SMD564_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── 260209_Q8_SMD564_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── 260209_Q8_SMD564_Index3_TimeSignal_deg.wav
+│   │   │   │   ├── A26_0224_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── A27_0211_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── A27_0220_DUMP_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── A27_0225_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── A27_0226_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── A27_0304_PFT_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── A27_0306_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── A27_0306_SMD202_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── APLLEULTRA2_COMP_0811_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── B7R_N41_AMR_WB_HS_SMD113_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── B7_N41_AMR_WB_HS_SMD113_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── Honor_Air_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── Jinju_250903_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── Jinju_250903_SMD629_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index3_TimeSignal_deg.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index4_TimeSignal_deg.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index5_TimeSignal_deg.wav
+│   │   │   │   ├── L325 ref_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── L335_0202_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── L335_COMP_0811_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── L335_PV2_VOLTE_YD8_solo_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── L335_PV2_VOLTE_YD8_solo_SMD629_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── L345_0212_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── l345_dv2_0209_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── L345_VA3_DV2_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── L705_COMP_0811_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── M2_EUR_1126_PV3_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── M2_E_1111_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── M2_E_1111_SMD202_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── M2_Orange_1210_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── New Measurement Object_1_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── New Measurement Object_3_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── New Measurement Object_5_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── New Measurement Object_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── NTEST_06162_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── NTEST_0616_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── NTEST_0616_SMD1248_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── NTEST_0616_SMD1248_Index3_TimeSignal_deg.wav
+│   │   │   │   ├── PS_B41_HS_AMR_SMD113_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── PS_B41_HS_EVS_NB_SMD113_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── Q7_N41_HS_AMR_SMD113_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── Redmagic10Pro_SMD1248_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── S25_Edge_SMD202_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── SM-S731U_N41_HS_EVS_WB_SMD113_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── V2_0212_COS_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── v2_0224_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── V2_DV2-1_#25_0130_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── V2_DV2_0204_COS_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── x2_ref_0130_SMD629_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── x2_ref_0130_SMD629_Index2_TimeSignal_deg.wav
+│   │   │   │   ├── x2_ref_0130_SMD629_Index3_TimeSignal_deg.wav
+│   │   │   │   ├── x2_ref_0130_SMD629_Index4_TimeSignal_deg.wav
+│   │   │   │   ├── XC7P_N41_HS_AMR_SMD113_Index1_TimeSignal_deg.wav
+│   │   │   │   ├── XCOVER7P_N41_HS_EVS_WB_SMD113_Index1_TimeSignal_deg.wav
+│   │   │   ├── wavs_ref
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index3_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index4_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_M1Q_data_SMD202_Index5_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index10_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index3_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index4_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index5_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index6_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index7_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index8_TimeSignal_ref.wav
+│   │   │   │   ├── 0309_TMOS_data_M1_QC_SMD1248_Index9_TimeSignal_ref.wav
+│   │   │   │   ├── 0417 PA2_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1031 A56_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1031 A56_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1031 A57_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1031 A57_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1107_M1 EUR_New PV2_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1107_M1 EUR_New PV2_SMD202_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── 1113_M3_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1114_m1_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1114_m1_SMD202_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── 1118_m1_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1119_M3_lib_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1120_M1_tune_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1124_M1_PV3_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1209_M1_CHN_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 1209_M1_CHN_SMD202_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── 250114_Q7_TMOS_SMD564_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 250114_Q7_TMOS_SMD564_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── 250114_Q7_TMOS_SMD564_Index3_TimeSignal_ref.wav
+│   │   │   │   ├── 250114_Q7_TMOS_SMD564_Index4_TimeSignal_ref.wav
+│   │   │   │   ├── 250204_A536_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 250620_SKH_A536_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 250623_SKH_A536_SND_CAL_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 250811_SKH_A536_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 250925_A253C_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 250925_A253C_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 250925_A253D_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 250925_A253D_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 251016_Mate70RS_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 251016_Mate70RS_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 251016_S25U_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 251016_S25U_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 251021_A536_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 251203_OJT_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 251204_A536_SMD1055_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 251204_A536_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 251205_A536_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 260202_A536_SMD1055_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 260202_A536_SMD1055_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── 260206_A536_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 260209_Q8_SMD1055_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 260209_Q8_SMD1055_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── 260209_Q8_SMD1055_Index3_TimeSignal_ref.wav
+│   │   │   │   ├── 260209_Q8_SMD564_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── 260209_Q8_SMD564_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── 260209_Q8_SMD564_Index3_TimeSignal_ref.wav
+│   │   │   │   ├── A26_0224_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── A27_0211_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── A27_0220_DUMP_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── A27_0225_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── A27_0226_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── A27_0304_PFT_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── A27_0306_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── A27_0306_SMD202_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── APLLEULTRA2_COMP_0811_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── B7R_N41_AMR_WB_HS_SMD113_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── B7_N41_AMR_WB_HS_SMD113_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── Honor_Air_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── Jinju_250903_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── Jinju_250903_SMD629_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index3_TimeSignal_ref.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index4_TimeSignal_ref.wav
+│   │   │   │   ├── Jinju_250904_SMD629_Index5_TimeSignal_ref.wav
+│   │   │   │   ├── L325 ref_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── L335_0202_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── L335_COMP_0811_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── L335_PV2_VOLTE_YD8_solo_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── L335_PV2_VOLTE_YD8_solo_SMD629_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── L345_0212_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── l345_dv2_0209_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── L345_VA3_DV2_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── L705_COMP_0811_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── M2_EUR_1126_PV3_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── M2_E_1111_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── M2_E_1111_SMD202_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── M2_Orange_1210_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── New Measurement Object_1_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── New Measurement Object_3_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── New Measurement Object_5_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── New Measurement Object_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── NTEST_06162_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── NTEST_0616_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── NTEST_0616_SMD1248_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── NTEST_0616_SMD1248_Index3_TimeSignal_ref.wav
+│   │   │   │   ├── PS_B41_HS_AMR_SMD113_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── PS_B41_HS_EVS_NB_SMD113_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── Q7_N41_HS_AMR_SMD113_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── Redmagic10Pro_SMD1248_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── S25_Edge_SMD202_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── SM-S731U_N41_HS_EVS_WB_SMD113_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── V2_0212_COS_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── v2_0224_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── V2_DV2-1_#25_0130_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── V2_DV2_0204_COS_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── x2_ref_0130_SMD629_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── x2_ref_0130_SMD629_Index2_TimeSignal_ref.wav
+│   │   │   │   ├── x2_ref_0130_SMD629_Index3_TimeSignal_ref.wav
+│   │   │   │   ├── x2_ref_0130_SMD629_Index4_TimeSignal_ref.wav
+│   │   │   │   ├── XC7P_N41_HS_AMR_SMD113_Index1_TimeSignal_ref.wav
+│   │   │   │   ├── XCOVER7P_N41_HS_EVS_WB_SMD113_Index1_TimeSignal_ref.wav
+│   │   ├── nisqa
+│   │   │   ├── NISQA_lib.py
+│   │   │   ├── NISQA_model.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── NISQA_lib.cpython-39.pyc
+│   │   │   │   ├── NISQA_model.cpython-39.pyc
+│   │   ├── outputs
+│   │   │   ├── tmos_train_smoketest
+│   │   │   │   ├── logs
+│   │   │   │   │   ├── train_tmos_lookup.log
+│   │   │   │   ├── manifests
+│   │   │   │   │   ├── train_val_resolved.csv
+│   │   │   │   ├── TMOS_DE_SMOKETEST_260310_204141048062
+│   │   │   │   │   ├── TMOS_DE_SMOKETEST_260310_204141048062.yaml
+│   │   │   │   ├── TMOS_DE_SMOKETEST_260311_093050363445
+│   │   │   │   │   ├── TMOS_DE_SMOKETEST_260311_093050363445.yaml
+│   │   ├── weights
+│   │   │   ├── LICENSE_model_weights
+│   │   │   ├── nisqa.tar
+│   │   │   ├── nisqa_mos_only.tar
+│   │   │   ├── nisqa_tts.tar
